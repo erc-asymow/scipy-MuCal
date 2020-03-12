@@ -1,0 +1,13 @@
+__init__.py
+*.png
+*.pdf
+*.root
+*.pyc
+.*.swp
+.#*
+#*#
+*~
+*.so
+screenlog.*
+*.o
+dict.*
