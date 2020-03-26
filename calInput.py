@@ -15,47 +15,6 @@ isJ = args.isJ
 isData = args.isData
 tag = args.tag
 
-def datasetSplitter(dataRaw, etas, phis):
-
-    dataset = {}
-    data = {}
-
-    for key,value in dataRaw.iteritems():
-        data[key]=np.array(value)
-
-    allBins=[]
-    for i in range(1,len(etas)):
-        for j in range(1,len(phis)):
-
-                allBins.append(i+(len(etas)-1)*(j-1)-1)
-
-    #figure out in which bin of eta and phi you are
-    etaBin1 = np.digitize(np.array([data["eta1"]]), etas)
-    etaBin2 = np.digitize(np.array([data["eta2"]]), etas)
-    phiBin1 = np.digitize(np.array([data["phi1"]]), phis)
-    phiBin2 = np.digitize(np.array([data["phi2"]]), phis)
-
-    print allBins
-    
-    for bin1,bin2 in itertools.product(allBins, repeat=2):
-
-        print bin1,bin2
-
-        tmp = {}
-        
-        for key, value in data.iteritems():
-
-            tmp[key] = value[ np.where((etaBin1+(len(etas)-1)*(phiBin1-1)-1==bin1) & (etaBin2+(len(etas)-1)*(phiBin2-1)-1==bin2))[1]]
-
-        tmp["s1"] = 2*np.exp(-tmp["eta1"])/(1+np.exp(-2*tmp["eta1"]))
-        tmp["s2"] = 2*np.exp(-tmp["eta2"])/(1+np.exp(-2*tmp["eta2"]))
-        tmp["c1"] = 1./tmp["pt1"]
-        tmp["c2"] = 1./tmp["pt2"]
-
-        dataset[(bin1,bin2)] = tmp
-
-    return dataset
-
 
 ROOT.ROOT.EnableImplicitMT()
 RDF = ROOT.ROOT.RDataFrame
@@ -63,7 +22,7 @@ RDF = ROOT.ROOT.RDataFrame
 restrictToBarrel = True
 
 if isJ:
-    cut = 'pt1>5 && pt2>5 && mass>3.0 && mass<3.2'
+    cut = 'pt1>3. && pt2>3. && mass>2.9 && mass<3.3'
     
 else:
     cut = 'pt1>20.0 && pt2>20.0 && mass>80. && mass<100.'
@@ -106,27 +65,60 @@ d = d.Filter(cut)\
      .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*pt2),eta2,phi2,0.105)')\
      .Define('smearedgenMass', '(v1sm+v2sm).M()')
 
-
-data = d.AsNumpy(columns=["smearedgenMass", "massErr","rapidity","eta1", "pt1", "phi1", "eta2", "pt2", "phi2"])
-
 etas = np.arange(-0.8, 1.2, 0.4)
+pts = np.array((3.,7.,10.,15.,20.))
+mass = np.arange(2.9,3.304,0.004)
+#etas = np.array((-0.8,0.8))
+#pts = np.array((3.,20.))
+
 #phis = np.arange(-np.pi, np.pi+2.*np.pi/6.,2.*np.pi/6.)
 phis = np.array((-np.pi,np.pi))
 
-dataset = datasetSplitter(data,etas,phis)
+data = d.AsNumpy(columns=["mass","eta1", "pt1", "phi1", "eta2", "pt2", "phi2"])
 
-filehandler = open('calInputZMCsm.pkl', 'w')
-pickle.dump(dataset, filehandler)
+"""
+eta1
+eta2
+genMass
+phi2
+phi1
+pt2
+pt1
+"""
+
+dataset = np.array([val for val in data.values()])
+histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,mass,phis,phis,pts,pts])
+
+
+
+if not isJ:
+    filehandler = open('calInputZMC.pkl', 'w')
+else:
+    filehandler = open('calInputJMC.pkl', 'w')
+pickle.dump(histo, filehandler)
 
 
 if not isData:
 
-    dataGen = d.AsNumpy(columns=["genMass", "massErr","rapidity","eta1", "pt1", "phi1", "eta2", "pt2", "phi2"])
+    dataGen = d.AsNumpy(columns=["genMass","eta1", "pt1", "phi1", "eta2", "pt2", "phi2"])
 
-    datasetGen = datasetSplitter(dataGen,etas,phis)
+    """
+    eta1
+    eta2
+    mass
+    phi2
+    phi1
+    pt2
+    pt1
+    """
+    datasetGen = np.array([val for val in dataGen.values()])
+    histoGen, edges = np.histogramdd(datasetGen.T, bins = [etas,etas,mass,phis,phis,pts,pts])
 
-    filehandler = open('calInputZMCgen.pkl', 'w')
-    pickle.dump(datasetGen, filehandler)
+    if not isJ:
+        filehandler = open('calInputZMCgen.pkl', 'w')
+    else:
+        filehandler = open('calInputJMCgen.pkl', 'w')
+    pickle.dump(histoGen, filehandler)
 
 
 
