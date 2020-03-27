@@ -189,3 +189,26 @@ constraints = LinearConstraint( A=np.eye(x.shape[0]), lb=lb, ub=ub,keep_feasible
 res = minimize(nllJ, x, args=(etas,phis,pts,datasetJ,datasetJgen),method = 'trust-constr',jac = grad, hess = hess,constraints=constraints,options={'verbose':3,'disp':True,'maxiter' : 100000, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
 
 print res
+
+hessian = hess(res.x,etas,phis,pts,datasetJ,datasetJgen)
+print np.linalg.eigvals(hessian), "eigenvalues"
+
+invhess = np.linalg.inv(hessian)
+
+edm = 0.5*np.matmul(np.matmul(grad(res.x,etas,phis,pts,datasetJ,datasetJgen).T,invhess),grad(res.x,etas,phis,pts,datasetJ,datasetJgen))
+
+print res.x, "+/-", np.sqrt(np.diag(invhess))
+print edm, "edm"
+
+diag = np.diag(np.sqrt(np.diag(invhess)))
+diag = np.linalg.inv(diag)
+corr = np.dot(diag,invhess).dot(diag)
+
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+
+plt.clf()
+plt.pcolor(corr, cmap='jet', vmin=-1, vmax=1)
+plt.colorbar()
+plt.savefig("corr.pdf")
