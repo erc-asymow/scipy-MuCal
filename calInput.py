@@ -65,11 +65,11 @@ d = d.Filter(cut)\
      .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*pt2),eta2,phi2,0.105)')\
      .Define('smearedgenMass', '(v1sm+v2sm).M()')
 
-etas = np.arange(-0.8, 1.2, 0.4)
-pts = np.array((3.,7.,10.,15.,20.))
+#etas = np.arange(-0.8, 1.2, 0.4)
+#pts = np.array((3.,7.,15.,20.))
 mass = np.arange(2.9,3.304,0.004)
-#etas = np.array((-0.8,0.8))
-#pts = np.array((3.,20.))
+etas = np.array((-0.8,0.8))
+pts = np.array((3.,20.))
 
 #phis = np.arange(-np.pi, np.pi+2.*np.pi/6.,2.*np.pi/6.)
 phis = np.array((-np.pi,np.pi))
