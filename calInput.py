@@ -22,7 +22,7 @@ RDF = ROOT.ROOT.RDataFrame
 restrictToBarrel = True
 
 if isJ:
-    cut = 'pt1>3. && pt2>3. && mass>2.9 && mass<3.3'
+    cut = 'pt1>3. && pt2>3.'# && mass>2.9 && mass<3.3'
     
 else:
     cut = 'pt1>20.0 && pt2>20.0 && mass>80. && mass<100.'
@@ -67,7 +67,7 @@ d = d.Filter(cut)\
 
 #etas = np.arange(-0.8, 1.2, 0.4)
 #pts = np.array((3.,7.,15.,20.))
-mass = np.arange(2.9,3.304,0.004)
+mass = np.arange(3.05,3.151,0.001)
 etas = np.array((-0.8,0.8))
 pts = np.array((3.,20.))
 
@@ -97,6 +97,8 @@ else:
     filehandler = open('calInputJMC.pkl', 'w')
 pickle.dump(histo, filehandler)
 
+#mass = np.arange(3.05,3.1501,0.0001)
+mass = np.arange(2.9,3.3004,0.0004)
 
 if not isData:
 
