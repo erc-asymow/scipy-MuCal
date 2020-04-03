@@ -255,7 +255,7 @@ btol = 1.e-8
 
 idx = np.where((np.sum(datasetJgen,axis=2)<5000.).flatten())[0]
 
-lb_scale = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-np.inf).flatten()
+lb_scale = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),0.).flatten()
 lb_sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-np.inf).flatten()
 lb_nsig = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-np.inf).flatten()
 
@@ -294,6 +294,11 @@ good_idx = np.concatenate((good_idx, good_idx+nEtaBins*nEtaBins*nPtBins*nPtBins,
 
 fitres = res.x[good_idx]
 
+gradient = grad(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen)
+gradfinal = gradient[good_idx]
+
+print gradient, "gradient"
+
 hessian = hess(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen)
 
 hessmod = hessian[good_idx,:]
@@ -302,9 +307,6 @@ hessfinal = hessmod[:,good_idx]
 print np.linalg.eigvals(hessfinal), "eigenvalues"
 
 invhess = np.linalg.inv(hessfinal)
-
-gradient = grad(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen)
-gradfinal = gradient[good_idx]
 
 edm = 0.5*np.matmul(np.matmul(gradfinal.T,invhess),gradfinal)
 
