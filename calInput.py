@@ -1,19 +1,22 @@
 import ROOT
 import pickle
 import numpy as np
+from header import *
 from root_numpy import array2hist, fill_hist
 import argparse
 import itertools
 
+#ROOT.gSystem.Load('bin/libKalman.so')
+
 parser = argparse.ArgumentParser("")
 parser.add_argument('-isJ', '--isJ', default=False, action='store_true', help="Use to run on JPsi, omit to run on Z")
 parser.add_argument('-isData', '--isData', default=False, action='store_true', help="Use if data, omit if MC")
-parser.add_argument('-tag', '--tag', type=str, default="TEST",      help="folder to save output")
+parser.add_argument('-runClosure', '--runClosure', default=False, action='store_true', help="Use to apply full calibration. If omit, rescale data for B map and leave MC as it is")
 
 args = parser.parse_args()
 isJ = args.isJ
 isData = args.isData
-tag = args.tag
+runClosure = args.runClosure
 
 
 ROOT.ROOT.EnableImplicitMT()
@@ -65,56 +68,52 @@ d = d.Filter(cut)\
      .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*pt2),eta2,phi2,0.105)')\
      .Define('smearedgenMass', '(v1sm+v2sm).M()')
 
-#etas = np.arange(-0.8, 1.2, 0.4)
+if isData:
+    f = ROOT.TFile.Open("/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/bFieldMap.root")
+    bFieldMap = f.Get('bfieldMap')
+
+    if runClosure: print "taking corrections from", "/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/scale_{}_80X_13TeV.root".format("DATA" if isData else "MC")
+    f2 = ROOT.TFile.Open("/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/scale_{}_80X_13TeV.root".format("DATA" if isData else "MC"))
+    A = f2.Get('magnetic')
+    e = f2.Get('e')
+    M = f2.Get('B')
+
+    module = ROOT.applyCalibration(bFieldMap, A, e, M, isData, runClosure)
+
+    d = module.run(CastToRNode(d))
+
+etas = np.arange(-0.8, 1.2, 0.4)
 #pts = np.array((3.,7.,15.,20.))
 mass = np.arange(3.05,3.151,0.001)
-etas = np.array((-0.8,0.8))
+#etas = np.array((-0.8,0.8))
 pts = np.array((3.,20.))
 
 #phis = np.arange(-np.pi, np.pi+2.*np.pi/6.,2.*np.pi/6.)
 phis = np.array((-np.pi,np.pi))
 
-data = d.AsNumpy(columns=["mass","eta1", "pt1", "phi1", "eta2", "pt2", "phi2"])
+data = d.AsNumpy(columns=["smearedgenMass","eta1", "pt1", "eta2", "pt2"])
 
-"""
-eta1
-eta2
-genMass
-phi2
-phi1
-pt2
-pt1
-"""
+dataset = np.array([data["eta1"],data["eta2"],data["smearedgenMass"],data["pt1"],data["pt2"]])
 
-dataset = np.array([val for val in data.values()])
-histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,mass,phis,phis,pts,pts])
-
+histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,mass,pts,pts])
 
 
 if not isJ:
-    filehandler = open('calInputZMC.pkl', 'w')
+    filehandler = open('calInputZ{}.pkl'.format("DATA" if isData else "MC"), 'w')
 else:
-    filehandler = open('calInputJMC.pkl', 'w')
+    filehandler = open('calInputJ{}.pkl'.format("DATA" if isData else "MC"), 'w')
 pickle.dump(histo, filehandler)
 
 #mass = np.arange(3.05,3.1501,0.0001)
-mass = np.arange(2.9,3.3004,0.0004)
+#mass = np.arange(2.8,3.4,0.0006)
+#print len(mass), mass
 
 if not isData:
 
     dataGen = d.AsNumpy(columns=["genMass","eta1", "pt1", "phi1", "eta2", "pt2", "phi2"])
 
-    """
-    eta1
-    eta2
-    mass
-    phi2
-    phi1
-    pt2
-    pt1
-    """
-    datasetGen = np.array([val for val in dataGen.values()])
-    histoGen, edges = np.histogramdd(datasetGen.T, bins = [etas,etas,mass,phis,phis,pts,pts])
+    datasetGen = np.array([dataGen["eta1"],dataGen["eta2"],dataGen["genMass"],dataGen["pt1"],dataGen["pt2"]])
+    histoGen, edges = np.histogramdd(datasetGen.T, bins = [etas,etas,mass,pts,pts])
 
     if not isJ:
         filehandler = open('calInputZMCgen.pkl', 'w')
