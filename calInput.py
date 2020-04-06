@@ -6,15 +6,17 @@ from root_numpy import array2hist, fill_hist
 import argparse
 import itertools
 
-#ROOT.gSystem.Load('bin/libKalman.so')
+ROOT.gSystem.Load('bin/libKalman.so')
 
-parser = argparse.ArgumentParser("")
-parser.add_argument('-isJ', '--isJ', default=False, action='store_true', help="Use to run on JPsi, omit to run on Z")
-parser.add_argument('-isData', '--isData', default=False, action='store_true', help="Use if data, omit if MC")
-parser.add_argument('-runClosure', '--runClosure', default=False, action='store_true', help="Use to apply full calibration. If omit, rescale data for B map and leave MC as it is")
+parser = argparse.ArgumentParser('')
+parser.add_argument('-isJ', '--isJ', default=False, action='store_true', help='Use to run on JPsi, omit to run on Z')
+parser.add_argument('-smearedMC', '--smearedMC', default=False, action='store_true', help='Use smeared gen mass in MC, omit for using reco mass')
+parser.add_argument('-isData', '--isData', default=False, action='store_true', help='Use if data, omit if MC')
+parser.add_argument('-runClosure', '--runClosure', default=False, action='store_true', help='Use to apply full calibration. If omit, rescale data for B map and leave MC as it is')
 
 args = parser.parse_args()
 isJ = args.isJ
+smearedMC = args.smearedMC
 isData = args.isData
 runClosure = args.runClosure
 
@@ -60,48 +62,60 @@ ROOT.gInterpreter.ProcessLine('''
                 '''.format(NSlots = NSlots))
 
 print cut
+
 d = d.Filter(cut)\
 	 .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105)')\
      .Define('v2', 'ROOT::Math::PtEtaPhiMVector(pt2,eta2,phi2,0.105)')\
-	 .Define('rapidity', 'float((v1+v2).Rapidity())').Filter('fabs(rapidity)<0.8')\
+	 .Define('rapidity', 'float((v1+v2).Rapidity())').Filter('fabs(rapidity)<2.4')\
      .Define('v1sm', 'ROOT::Math::PtEtaPhiMVector(mcpt1+myRndGens[rdfslot_].Gaus(0., cErr1*pt1),eta1,phi1,0.105)')\
      .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*pt2),eta2,phi2,0.105)')\
      .Define('smearedgenMass', '(v1sm+v2sm).M()')
 
-if isData:
-    f = ROOT.TFile.Open("/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/bFieldMap.root")
-    bFieldMap = f.Get('bfieldMap')
+f = ROOT.TFile.Open('/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/bFieldMap.root')
+bFieldMap = f.Get('bfieldMap')
 
-    if runClosure: print "taking corrections from", "/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/scale_{}_80X_13TeV.root".format("DATA" if isData else "MC")
-    f2 = ROOT.TFile.Open("/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/scale_{}_80X_13TeV.root".format("DATA" if isData else "MC"))
-    A = f2.Get('magnetic')
-    e = f2.Get('e')
-    M = f2.Get('B')
+if runClosure: print 'taking corrections from', '/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/scale_{}_80X_13TeV.root'.format('DATA' if isData else 'MC')
 
-    module = ROOT.applyCalibration(bFieldMap, A, e, M, isData, runClosure)
+f2 = ROOT.TFile.Open('/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/scale_{}_80X_13TeV.root'.format('DATA' if isData else 'MC'))
+A = f2.Get('magnetic')
+e = f2.Get('e')
+M = f2.Get('B')
 
-    d = module.run(CastToRNode(d))
+module = ROOT.applyCalibration(bFieldMap, A, e, M, isData, runClosure)
 
-etas = np.arange(-0.8, 1.2, 0.4)
-#pts = np.array((3.,7.,15.,20.))
-mass = np.arange(3.05,3.151,0.001)
-#etas = np.array((-0.8,0.8))
-pts = np.array((3.,20.))
+d = module.run(CastToRNode(d))
+
+mass = 'corrMass'
+
+if not isData and smearedMC:
+    mass = 'smearedgenMass'
+
+data = d.AsNumpy(columns=[mass,'eta1', 'pt1', 'eta2', 'pt2'])
+
+dataset = np.array([data['eta1'],data['eta2'],data[mass],data['pt1'],data['pt2']])
+
+#etas = np.arange(-0.8, 1.2, 0.4)
+pts = np.array((3.,4.5,5.5,7.,20.))
+mass = np.arange(2.9,3.304,0.004)
+etas = np.array((-0.8,0.8))
+#pts = np.array((3.,20.))
 
 #phis = np.arange(-np.pi, np.pi+2.*np.pi/6.,2.*np.pi/6.)
 phis = np.array((-np.pi,np.pi))
 
-data = d.AsNumpy(columns=["smearedgenMass","eta1", "pt1", "eta2", "pt2"])
-
-dataset = np.array([data["eta1"],data["eta2"],data["smearedgenMass"],data["pt1"],data["pt2"]])
-
 histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,mass,pts,pts])
 
-
-if not isJ:
-    filehandler = open('calInputZ{}.pkl'.format("DATA" if isData else "MC"), 'w')
+pklfile = 'calInput{}'.format('J' if isJ else 'Z')
+if isData: pklfile+='DATA'
 else:
-    filehandler = open('calInputJ{}.pkl'.format("DATA" if isData else "MC"), 'w')
+    if smearedMC:
+        pklfile+='MCsmear'
+    else:
+        pklfile+='MC'
+pklfile+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(pts)-1)
+pklfile+='.pkl'
+
+filehandler = open(pklfile, 'w')
 pickle.dump(histo, filehandler)
 
 #mass = np.arange(3.05,3.1501,0.0001)
@@ -110,15 +124,15 @@ pickle.dump(histo, filehandler)
 
 if not isData:
 
-    dataGen = d.AsNumpy(columns=["genMass","eta1", "pt1", "phi1", "eta2", "pt2", "phi2"])
+    dataGen = d.AsNumpy(columns=['genMass','eta1', 'pt1', 'phi1', 'eta2', 'pt2', 'phi2'])
 
-    datasetGen = np.array([dataGen["eta1"],dataGen["eta2"],dataGen["genMass"],dataGen["pt1"],dataGen["pt2"]])
+    datasetGen = np.array([dataGen['eta1'],dataGen['eta2'],dataGen['genMass'],dataGen['pt1'],dataGen['pt2']])
     histoGen, edges = np.histogramdd(datasetGen.T, bins = [etas,etas,mass,pts,pts])
 
     if not isJ:
-        filehandler = open('calInputZMCgen.pkl', 'w')
+        filehandler = open('calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'w')
     else:
-        filehandler = open('calInputJMCgen.pkl', 'w')
+        filehandler = open('calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'w')
     pickle.dump(histoGen, filehandler)
 
 
