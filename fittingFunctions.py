@@ -10,7 +10,8 @@ from root_numpy import array2hist, fill_hist
 from autograd.scipy.special import erf
 from autograd.scipy.stats import poisson
 import threading
-import Queue
+#import Queue
+import queue
 import math
 
 import matplotlib
@@ -73,7 +74,7 @@ def nll(x,nEtaBins,i,j,idx,dataset,datasetGen):
 
     #h=np.outer(np.sqrt(term1*term2),vals)
     scale = x[idx]
-    sigma = x[x.shape[0]/2+idx]
+    sigma = x[int(x.shape[0]/2+idx)]
         
     counts = np.histogram(z, bins=100, range=(80.,100.))[0]
     mass = np.linspace(80.,100.,100)
@@ -156,7 +157,7 @@ def plots(x,nEtaBins,dataset,datasetGen):
 
         #h=np.outer(np.sqrt(term1*term2),vals)
         scale = x[idx2D]
-        sigma = x[x.shape[0]/2+idx2D]
+        sigma = x[int(x.shape[0]/2+idx2D)]
         
         counts = np.histogram(z, bins=100, range=(80.,100.))[0]
         mass = np.linspace(80.,100.,100)
@@ -193,6 +194,12 @@ datasetZ = pickle.load(fileZ)
 fileZgen = open("calInputZMCgen.pkl", "rb")
 datasetZgen = pickle.load(fileZgen)
 
+#datasetZ = np.load("calInputZMCsm.npy", allow_pickle=True)
+#datasetZgen = np.load("calInputZMCgen.npy", allow_pickle=True)
+
+#print(datasetZ.shape)
+#print(datasetZgen.shape)
+
 etas = np.arange(-0.8, 1.2, 0.4)
 #phis = np.arange(-np.pi, np.pi+2.*np.pi/6.,2.*np.pi/6.)
 #etas = np.array((-0.8,-0.4))
@@ -201,7 +208,7 @@ phis = np.array((-np.pi,np.pi))
 
 x = defineState(len(etas)-1,len(phis)-1,datasetZ)
 
-print "minimising"
+print("minimising")
 
 xtol = np.finfo('float64').eps
 
@@ -216,21 +223,21 @@ btol = 1.e-8
 
 res = minimize(nllSimul, x, args=(len(etas)-1, datasetZ, datasetZ, datasetZgen, datasetZgen),method = 'trust-constr',jac = grad, hess = hess,options={'verbose':3,'disp':True,'maxiter' : 100000, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
 
-print res
+print(res)
 
 plots(res.x,len(etas)-1,datasetZ,datasetZgen)
 
 hessian = hess(x,len(etas)-1, datasetZ, datasetZ, datasetZgen, datasetZgen)
-print np.linalg.eigvals(hessian)
+print(np.linalg.eigvals(hessian))
 
-print grad(res.x,len(etas)-1, datasetZ, datasetZ, datasetZgen, datasetZgen), "grad"
-print hessian, "hessian"
+print(grad(res.x,len(etas)-1, datasetZ, datasetZ, datasetZgen, datasetZgen), "grad")
+print(hessian, "hessian")
 invhess = np.linalg.inv(hessian)
 
 edm = 0.5*np.matmul(np.matmul(grad(res.x,len(etas)-1, datasetZ, datasetZ, datasetZgen, datasetZgen).T,invhess),grad(res.x,len(etas)-1, datasetZ, datasetZ, datasetZgen, datasetZgen))
 
-print res.x, "+/-", np.sqrt(np.diag(invhess))
-print edm, "edm"
+print(res.x, "+/-", np.sqrt(np.diag(invhess)))
+print(edm, "edm")
 
 diag = np.diag(np.sqrt(np.diag(invhess)))
 diag = np.linalg.inv(diag)

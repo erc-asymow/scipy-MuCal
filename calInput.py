@@ -20,7 +20,7 @@ def datasetSplitter(dataRaw, etas, phis):
     dataset = {}
     data = {}
 
-    for key,value in dataRaw.iteritems():
+    for key,value in dataRaw.items():
         data[key]=np.array(value)
 
     allBins=[]
@@ -35,15 +35,15 @@ def datasetSplitter(dataRaw, etas, phis):
     phiBin1 = np.digitize(np.array([data["phi1"]]), phis)
     phiBin2 = np.digitize(np.array([data["phi2"]]), phis)
 
-    print allBins
+    print(allBins)
     
     for bin1,bin2 in itertools.product(allBins, repeat=2):
 
-        print bin1,bin2
+        print(bin1,bin2)
 
         tmp = {}
         
-        for key, value in data.iteritems():
+        for key, value in data.items():
 
             tmp[key] = value[ np.where((etaBin1+(len(etas)-1)*(phiBin1-1)-1==bin1) & (etaBin2+(len(etas)-1)*(phiBin2-1)-1==bin2))[1]]
 
@@ -79,11 +79,11 @@ if not isData:
     cut+= '&& mcpt1>0. && mcpt2>0.'
 
 if isJ:
-    inputFileMC ='/scratchssd/emanca/wproperties-analysis/muonCalibration/muonTree.root'
-    inputFileD ='/scratchssd/emanca/wproperties-analysis/muonCalibration/muonTreeData.root'
+    inputFileMC ='/data/bendavid/muoncaldata/muonTree.root'
+    inputFileD ='/data/bendavid/muoncaldata/muonTreeData.root'
 else:
-    inputFileMC ='/scratchssd/emanca/wproperties-analysis/muonCalibration/muonTreeMCZ.root'
-    inputFileD ='/scratchssd/emanca/wproperties-analysis/muonCalibration/muonTreeDataZ.root'
+    inputFileMC ='/data/bendavid/muoncaldata/muonTreeMCZ.root'
+    inputFileD ='/data/bendavid/muoncaldata/muonTreeDataZ.root'
 
 if isData: inputFile = inputFileD
 else: inputFile = inputFileMC
@@ -97,7 +97,7 @@ ROOT.gInterpreter.ProcessLine('''
                 for (auto &&gen : myRndGens) gen.SetSeed(seed++);
                 '''.format(NSlots = NSlots))
 
-print cut
+print(cut)
 d = d.Filter(cut)\
 	 .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105)')\
      .Define('v2', 'ROOT::Math::PtEtaPhiMVector(pt2,eta2,phi2,0.105)')\
@@ -114,9 +114,12 @@ etas = np.arange(-0.8, 1.2, 0.4)
 phis = np.array((-np.pi,np.pi))
 
 dataset = datasetSplitter(data,etas,phis)
+#print(dataset)
+#print(dataset.shape)
 
-filehandler = open('calInputZMCsm.pkl', 'w')
+filehandler = open('calInputZMCsm.pkl', 'wb')
 pickle.dump(dataset, filehandler)
+#np.save("calInputZMCsm.npy", dataset)
 
 
 if not isData:
@@ -124,9 +127,12 @@ if not isData:
     dataGen = d.AsNumpy(columns=["genMass", "massErr","rapidity","eta1", "pt1", "phi1", "eta2", "pt2", "phi2"])
 
     datasetGen = datasetSplitter(dataGen,etas,phis)
+    #print(datasetGen)
 
-    filehandler = open('calInputZMCgen.pkl', 'w')
+    filehandler = open('calInputZMCgen.pkl', 'wb')
     pickle.dump(datasetGen, filehandler)
+    #print(datasetGen.shape)
+    #np.save("calInputZMCgen.npy", datasetGen)
 
 
 
