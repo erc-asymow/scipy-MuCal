@@ -15,13 +15,13 @@ import matplotlib.pyplot as plt
 
 from fittingFunctionsBinned import *
 
-fileJ = open("calInputJMC_1etaBins_4ptBins.pkl", "rb")
+fileJ = open("calInputJMC_4etaBins_4ptBins.pkl", "rb")
 datasetJ = pickle.load(fileJ)
-fileJgen = open("calInputJMCgen_1etaBins_4ptBins.pkl", "rb")
+fileJgen = open("calInputJMCgen_4etaBins_4ptBins.pkl", "rb")
 datasetJgen = pickle.load(fileJgen)
 
-#etas = np.arange(-0.8, 1.2, 0.4)
-etas = np.array((-0.8,0.8))
+etas = np.arange(-0.8, 1.2, 0.4)
+#etas = np.array((-0.8,0.8))
 pts = np.array((3.,4.5,5.5,7.,20.))
 #pts = np.array((3.,20.))
 
@@ -36,26 +36,32 @@ xtol = np.finfo('float64').eps
 
 btol = 1.e-8
 
+sep = nEtaBins*nEtaBins*nPtBins*nPtBins
 idx = np.where((np.sum(datasetJgen,axis=2)<1000.).flatten())[0]
+bad_idx = np.concatenate((idx, idx+sep,idx+2*sep), axis=None)
 
 lb_scale = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),0.).flatten()
-lb_sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-100.).flatten()
-lb_nsig = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-1000.).flatten()
+lb_sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-np.inf).flatten()
+lb_nsig = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-np.inf).flatten()
 
-lb_scale[idx] = np.full(len(idx),1.)
-lb_sigma[idx] = np.full(len(idx),-3.5)
-lb_nsig[idx] = np.full(len(idx),6.9)
+#lb_scale[idx] = np.full(len(idx),1.)
+#lb_sigma[idx] = np.full(len(idx),-3.5)
+#lb_nsig[idx] = np.full(len(idx),6.9)
 
 ub_scale = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),2.).flatten()
-ub_sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),10).flatten()
-ub_nsig = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),20.).flatten()
+ub_sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),np.inf).flatten()
+ub_nsig = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),np.inf).flatten()
 
-ub_scale[idx] = np.full(len(idx),1.)
-ub_sigma[idx] = np.full(len(idx),-3.5)
-ub_nsig[idx] = np.full(len(idx),6.9)
+#ub_scale[idx] = np.full(len(idx),1.)
+#ub_sigma[idx] = np.full(len(idx),-3.5)
+#ub_nsig[idx] = np.full(len(idx),6.9)
 
 lb = np.concatenate((lb_scale,lb_sigma,lb_nsig),axis=None)
 ub = np.concatenate((ub_scale,ub_sigma,ub_nsig),axis=None)
+
+#bounds for fixed parameters must be equal to the starting values
+lb[bad_idx] = x[bad_idx]
+ub[bad_idx] = x[bad_idx]
 
 constraints = LinearConstraint( A=np.eye(x.shape[0]), lb=lb, ub=ub,keep_feasible=True )
 
@@ -69,8 +75,6 @@ res = minimize(nll, x, args=(nEtaBins,nPtBins,datasetJ,datasetJgen),\
 print res
 
 good_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
-
-sep = nEtaBins*nEtaBins*nPtBins*nPtBins
 good_idx = np.concatenate((good_idx, good_idx+sep,good_idx+2*sep), axis=None)
 
 fitres = res.x[good_idx]
