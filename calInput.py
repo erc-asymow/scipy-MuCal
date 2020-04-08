@@ -94,10 +94,13 @@ data = d.AsNumpy(columns=[mass,'eta1', 'pt1', 'eta2', 'pt2'])
 
 dataset = np.array([data['eta1'],data['eta2'],data[mass],data['pt1'],data['pt2']])
 
-#etas = np.arange(-0.8, 1.2, 0.4)
-pts = np.array((3.,4.5,5.5,7.,20.))
-mass = np.arange(2.9,3.304,0.004)
-etas = np.array((-0.8,0.8))
+etas = np.arange(-0.8, 1.2, 0.4)
+if isJ: pts = np.array((3.,4.5,5.5,7.,20.))
+else: pts = np.array((20.,30,40,50,60,70,100))
+
+if isJ: mass = np.arange(2.9,3.304,0.004)
+else: mass = np.arange(75.,115.04,0.4)
+#etas = np.array((-0.8,0.8))
 #pts = np.array((3.,20.))
 
 #phis = np.arange(-np.pi, np.pi+2.*np.pi/6.,2.*np.pi/6.)

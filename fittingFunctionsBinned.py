@@ -40,12 +40,33 @@ def defineStatebkg(nEtaBins,nPtBins,dataset):
                 
     return x.astype('float64')
 
-def kernelpdf(scale, sigma, dataset, datasetGen):
+def defineStatePars(nEtaBins,nPtBins,dataset, isJ):
+
+    A = np.ones((nEtaBins)) + np.random.normal(0, 0.0005, (nEtaBins))
+    e = np.zeros((nEtaBins)) + np.random.normal(0, 0.005, (nEtaBins))
+    M = np.zeros((nEtaBins)) + np.random.normal(0, 0.000005, (nEtaBins))
+    sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-3.9) 
+    nsig = np.log(np.where(np.sum(dataset,axis=2)>0,np.sum(dataset,axis=2),2))
+
+    if isJ:
+        x = np.concatenate((A.flatten(), e.flatten(), M.flatten(), sigma.flatten(), nsig.flatten()),axis=None)
+    else:
+        x = np.concatenate((A.flatten(), M.flatten(), sigma.flatten(), nsig.flatten()),axis=None)
+
+    print x.shape, 'x.shape'
+                
+    return x.astype('float64')
+
+def kernelpdf(scale, sigma, dataset, datasetGen, isJ):
 
     #dataset is binned as eta1,eta2,mass,pt2,pt1
 
-    maxR = np.full((100),3.3)
-    minR = np.full((100),2.9)
+    if isJ:
+        maxR = np.full((100),3.3)
+        minR = np.full((100),2.9)
+    else:
+        maxR = np.full((100),75.)
+        minR = np.full((100),115.)
 
     valsReco = np.linspace(minR[0],maxR[0],100)
     valsGen = valsReco
@@ -90,10 +111,85 @@ def kernelpdf(scale, sigma, dataset, datasetGen):
     
     return pdf
 
+def kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ):
+
+    #dataset is binned as eta1,eta2,mass,pt2,pt1
+
+    if isJ:
+        maxR = np.full((100),3.3)
+        minR = np.full((100),2.9)
+    else:
+        maxR = np.full((100),75.)
+        minR = np.full((100),115.)  
+
+    valsReco = np.linspace(minR[0],maxR[0],100)
+    valsGen = valsReco
+
+    pts = np.array((3.,4.5,5.5,7.,20.))
+    ptsC = (pts[:-1] + pts[1:]) / 2.
+
+    etas = np.arange(-0.8, 1.2, 0.4)
+    etasC = (etas[:-1] + etas[1:]) / 2.
+
+    s = np.sin(2*np.arctan(np.exp(-etasC)))
+    
+    c = 1./ptsC
+
+    term1 = A-s[:,np.newaxis]*np.tensordot(e,c,axes=0)+np.tensordot(M,1./c,axes=0) 
+    term2 = A-s[:,np.newaxis]*np.tensordot(e,c,axes=0)-np.tensordot(M,1./c,axes=0) 
+
+    combos = np.swapaxes(np.tensordot(term1,term2, axes=0),1,2)
+
+    scale = np.sqrt(combos)
+
+    h= np.tensordot(scale,valsGen,axes=0) #get a 5D vector with np.newaxis with all possible combos of kinematics and gen mass values
+    h_ext = np.swapaxes(np.swapaxes(h,2,4),3,4)[:,:,np.newaxis,:,:,:]
+
+    sigma_ext = sigma[:,:,np.newaxis,np.newaxis,:,:]
+
+    xscale = np.sqrt(2.)*sigma_ext
+
+    maxR_ext = maxR[np.newaxis,np.newaxis,:,np.newaxis,np.newaxis,np.newaxis]
+    minR_ext = minR[np.newaxis,np.newaxis,:,np.newaxis,np.newaxis,np.newaxis]
+
+    maxZ = ((maxR_ext-h_ext.astype('float64'))/xscale)
+    minZ = ((minR_ext-h_ext.astype('float64'))/xscale)
+
+    arg = np.sqrt(np.pi/2.)*sigma_ext*(erf(maxZ)-erf(minZ))
+
+    #take tensor product between mass and genMass dimensions and sum over gen masses
+    #divide each bin by the sum of gen events in that bin
+    den = np.where(np.sum(datasetGen,axis=2)>1000.,np.sum(datasetGen,axis=2),-1)[:,:,np.newaxis,:,:]
+
+    I = np.sum(arg*datasetGen[:,:,np.newaxis,:,:,:],axis=3)/den
+
+    #give vals the right shape -> add dimension for gen mass (axis = 3)
+    vals_ext = valsReco[np.newaxis,np.newaxis,:,np.newaxis,np.newaxis, np.newaxis]
+
+    gaus = np.exp(-np.power(vals_ext  -h_ext.astype('float64'), 2.)/(2 * np.power(sigma_ext, 2.)))
+
+    #take tensor product between mass and genMass dimensions and sum over gen masses
+    #divide each bin by the sum of gen events in that bin
+    den2 = np.where(np.sum(datasetGen,axis=2)>1000.,np.sum(datasetGen,axis=2),1)[:,:,np.newaxis,:,:]
+
+    pdf = np.sum(gaus*datasetGen[:,:,np.newaxis,:,:,:],axis=3)/den2/np.where(I>0.,I,-1)
+
+    pdf = np.where(pdf>0.,pdf,0.)
+
+    massbinwidth = (maxR[0]-minR[0])/100
+
+    pdf = pdf*massbinwidth
+    
+    return pdf
+
 def exppdf(slope):
 
-    maxR = 3.3
-    minR = 2.9
+    if isJ:
+        maxR = 3.3
+        minR = 2.9
+    else:
+        maxR = 75.
+        minR = 115.
 
     valsReco = np.linspace(minR,maxR,100)
 
@@ -137,14 +233,42 @@ def nllbkg(x,nEtaBins,nPtBins,dataset,datasetGen):
     sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdf(scale, sigma, dataset, datasetGen)
     bkgpdf = nbkg[:,:,np.newaxis,:,:]*exppdf(slope)
 
-    nll = nsig+nbkg - np.sum(dataset*np.log(sigpdf+ bkgpdf), axis =2)
+    nll = nsig+nbkg - np.sum(dataset*np.log(np.where(sigpdf>0.,sigpdf+bkgpdf,1.)), axis =2)
         
     return np.sum(nll)
 
-def plots(x,nEtaBins,nPtBins,dataset,datasetGen):
+def nllPars(x,nEtaBins,nPtBins,dataset,datasetGen):
 
-    maxR = 3.3
-    minR = 2.9
+    sep = np.power(nEtaBins,2)*np.power(nPtBins,2)
+
+    A = x[:nEtaBins,np.newaxis]
+
+    if isJ:
+        e = x[nEtaBins:2*nEtaBins]
+        M = x[2*nEtaBins:3*nEtaBins]
+        sigma = np.exp(x[3*nEtaBins:3*nEtaBins+sep].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
+        nsig = np.exp(x[3*nEtaBins+sep:].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
+    else: 
+        e = np.zeros((nEtaBins))
+        M = x[nEtaBins:2*nEtaBins]
+        sigma = np.exp(x[2*nEtaBins:2*nEtaBins+sep].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
+        nsig = np.exp(x[2*nEtaBins+sep:].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
+
+    
+    sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdfPars(A, e, M, sigma, dataset, datasetGen)
+
+    nll = nsig - np.sum(dataset*np.log(np.where(sigpdf>0.,sigpdf,1.)), axis =2)
+        
+    return np.sum(nll)
+
+def plots(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
+
+    if isJ:
+        maxR = 3.3
+        minR = 2.9
+    else:
+        maxR = 75.
+        minR = 115.
 
     sep = np.power(nEtaBins,2)*np.power(nPtBins,2)
     
@@ -190,13 +314,17 @@ def plots(x,nEtaBins,nPtBins,dataset,datasetGen):
                     ax2.set_ylabel('ratio data/pdf')
                     plt.xlim(minR, maxR)
 
-                    plt.savefig('PLOTSJMC/plot_{}{}{}{}.pdf'.format(ieta1,ieta2,ipt1,ipt2))
+                    plt.savefig('PLOTS{}MC/plot_{}{}{}{}.pdf'.format('J' if isJ else 'Z',ieta1,ieta2,ipt1,ipt2))
 
 
-def plotsbkg(x,nEtaBins,nPtBins,dataset,datasetGen):
+def plotsbkg(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
 
-    maxR = 3.3
-    minR = 2.9
+    if isJ:
+        maxR = 3.3
+        minR = 2.9
+    else:
+        maxR = 75.
+        minR = 115.
 
     sep = np.power(nEtaBins,2)*np.power(nPtBins,2)
     
@@ -246,6 +374,79 @@ def plotsbkg(x,nEtaBins,nPtBins,dataset,datasetGen):
                     ax2.errorbar(mass,dataset[ieta1,ieta2,:,ipt1,ipt2]/pdf[ieta1,ieta2,:,ipt1,ipt2],yerr=np.sqrt(dataset[ieta1,ieta2,:,ipt1,ipt2])/pdf[ieta1,ieta2,:,ipt1,ipt2], fmt='.')
                     ax2.set_xlabel('dimuon mass')
                     ax2.set_ylabel('ratio data/pdf')
+                    plt.xlim(minR, maxR)  
+
+                    plt.savefig('PLOTS{}DATA/plot_{}{}{}{}.pdf'.format('J' if isJ else 'Z',ieta1,ieta2,ipt1,ipt2))
+
+
+def plotsPars(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
+
+   if isJ:
+        maxR = 3.3
+        minR = 2.9
+    else:
+        maxR = 75.
+        minR = 115.
+
+    sep = np.power(nEtaBins,2)*np.power(nPtBins,2)
+
+    if isJ:
+        e = x[nEtaBins:2*nEtaBins]
+        M = x[2*nEtaBins:3*nEtaBins]
+        sigma = np.exp(x[3*nEtaBins:3*nEtaBins+sep].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
+        nsig = np.exp(x[3*nEtaBins+sep:].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
+    else: 
+        e = np.zeros((nEtaBins))
+        M = x[nEtaBins:2*nEtaBins]
+        sigma = np.exp(x[2*nEtaBins:2*nEtaBins+sep].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
+        nsig = np.exp(x[2*nEtaBins+sep:].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
+    
+    sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdfPars(A, e, M, sigma, dataset, datasetGen)
+
+    pdf = sigpdf
+
+    mass = np.linspace(minR,maxR,100)
+
+    for ieta1 in range(nEtaBins):
+        for ieta2 in range(nEtaBins):
+            for ipt1 in range(nPtBins):
+                for ipt2 in range(nPtBins):
+
+                    if not pdf[ieta1,ieta2,:,ipt1,ipt2].any()>0.: continue
+
+                    A1_bin = A[ieta1,0]
+                    A2_bin = A[ieta2,0]
+                    e1_bin = e[ieta1]
+                    e2_bin = e[ieta2]
+                    M1_bin = M[ieta1]
+                    M2_bin = M[ieta2]
+
+                    sigma_bin = sigma[ieta1,ieta2,ipt1,ipt2]
+                    nsig_bin = nsig[ieta1,ieta2,ipt1,ipt2]
+                    n_true_bin = n_true[ieta1,ieta2,ipt1,ipt2]
+
+                    plt.clf()
+                  
+                    fig, (ax1, ax2) = plt.subplots(nrows=2)
+                    ax1.errorbar(mass, dataset[ieta1,ieta2,:,ipt1,ipt2], yerr=np.sqrt(dataset[ieta1,ieta2,:,ipt1,ipt2]), fmt='.')
+                    ax1.set_ylabel('number of events')
+                    ax1.text(0.95, 0.95, 'A1: {:.5f}\n A2: {:.5f}\n e1: {:.4f}\n e2: {:.4f}\n M1: {:.9f}\n M2: {:.9f}\n\
+                        sigma: {:.3f}\n nsig: {:.0f}\n ntrue: {:.0f}'\
+                        .format(A1_bin, A2_bin, e1_bin, e2_bin, M1_bin, M2_bin, sigma_bin,nsig_bin, n_true_bin),
+                    verticalalignment='top', horizontalalignment='right',
+                    transform=ax1.transAxes,
+                    color='black', fontsize=12)
+                    
+                    ax1.plot(mass, pdf[ieta1,ieta2,:,ipt1,ipt2])
+                    plt.xlim(minR, maxR)
+        
+                    ax2.errorbar(mass,dataset[ieta1,ieta2,:,ipt1,ipt2]/pdf[ieta1,ieta2,:,ipt1,ipt2],yerr=np.sqrt(dataset[ieta1,ieta2,:,ipt1,ipt2])/pdf[ieta1,ieta2,:,ipt1,ipt2], fmt='.')
+                    ax2.set_xlabel('dimuon mass')
+                    ax2.set_ylabel('ratio data/pdf')
                     plt.xlim(minR, maxR)
 
-                    plt.savefig('PLOTSJDATA/plot_{}{}{}{}.pdf'.format(ieta1,ieta2,ipt1,ipt2))
+                    plt.savefig('PLOTS{}MCCorr/plot_{}{}{}{}.pdf'.format('J' if isJ else 'Z',ieta1,ieta2,ipt1,ipt2))
+                    plt.close(fig)
+
+
+
