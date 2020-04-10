@@ -1,5 +1,20 @@
+import os
+os.environ["OMP_NUM_THREADS"] = "32" # export OMP_NUM_THREADS=4
+os.environ["OPENBLAS_NUM_THREADS"] = "32" # export OPENBLAS_NUM_THREADS=4 
+os.environ["MKL_NUM_THREADS"] = "32" # export MKL_NUM_THREADS=6
+os.environ["VECLIB_MAXIMUM_THREADS"] = "32" # export VECLIB_MAXIMUM_THREADS=4
+os.environ["NUMEXPR_NUM_THREADS"] = "32" # export NUMEXPR_NUM_THREADS=6
+
+#prepare possible migration to jax
+#import jax.numpy as np
+#from jax import grad, hessian, jacobian, config
+#from jax.scipy.special import erf
+#config.update('jax_enable_x64', True)
+
 from autograd import grad, hessian, jacobian
 import autograd.numpy as np
+from autograd.scipy.special import erf
+
 import ROOT
 import pickle
 from termcolor import colored
@@ -7,17 +22,21 @@ from scipy.optimize import minimize, SR1, LinearConstraint, check_grad, approx_f
 from scipy.optimize import Bounds
 import itertools
 from root_numpy import array2hist, fill_hist
-from autograd.scipy.special import erf
 
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-from fittingFunctionsBinned import *
-from binning import *
+from fittingFunctionsBinned import defineStatePars, nllPars
+from binning import etas, ptsJ, ptsJC, ptsZ
 import argparse
 
-def scaleFromPars(A,e,M):
+
+def scaleFromPars(x):
+
+    A = x[:nEtaBins, np.newaxis]
+    e = x[nEtaBins:2*nEtaBins]
+    M = x[2*nEtaBins:3*nEtaBins]
 
     etasC = (etas[:-1] + etas[1:]) / 2.
 
@@ -25,11 +44,11 @@ def scaleFromPars(A,e,M):
     
     c = np.array((0.1703978,0.21041214,0.26139158),dtype='float64') #bin centers in curvature
 
-    term1 = A-s[:,np.newaxis]*np.tensordot(e,c,axes=0)+np.tensordot(M,1./c,axes=0).astype('float64')
-    term2 = A-s[:,np.newaxis]*np.tensordot(e,c,axes=0)-np.tensordot(M,1./c,axes=0).astype('float64')
+    term1 = A-s[:,np.newaxis]*np.tensordot(e,c,axes=0)+np.tensordot(M,1./c,axes=0)
+    term2 = A-s[:,np.newaxis]*np.tensordot(e,c,axes=0)-np.tensordot(M,1./c,axes=0)
 
     scale = np.sqrt(np.swapaxes(np.tensordot(term1,term2, axes=0),1,2))
-    
+
     return scale.flatten()
 
 
@@ -60,10 +79,11 @@ else:
 
 print "minimising"
 
-#xtol = np.finfo('float64').eps
-xtol=0.1
+xtol = np.finfo('float64').eps
 #btol = 1.e-8
 btol = 0.1
+#maxiter = 100000
+maxiter = 2
 
 sep = nEtaBins*nEtaBins*nPtBins*nPtBins
 
@@ -105,31 +125,32 @@ else:
 constraints = LinearConstraint( A=np.eye(x.shape[0]), lb=lb, ub=ub,keep_feasible=True )
 
 if runCalibration:
-    grad = grad(nllPars)
-    hess = hessian(nllPars)
+    gradnll = grad(nllPars)
+    hessnll = hessian(nllPars)
 
     res = minimize(nllPars, x, args=(nEtaBins,nPtBins,datasetJ,datasetJgen,isJ),\
-        method = 'trust-constr',jac = grad, hess=SR1(),constraints=constraints,\
-        options={'verbose':3,'disp':True,'maxiter' : 100000, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
+        method = 'trust-constr',jac = gradnll, hess=SR1(),constraints=constraints,\
+        options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
 else:
-    grad = grad(nll)
-    hess = hessian(nll)
+    gradnll = grad(nll)
+    hessnll = hessian(nll)
 
     res = minimize(nll, x, args=(nEtaBins,nPtBins,datasetJ,datasetJgen,isJ),\
-        method = 'trust-constr',jac = grad, hess=SR1(),constraints=constraints,\
-        options={'verbose':3,'disp':True,'maxiter' : 100000, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
+        method = 'trust-constr',jac = gradnll, hess=SR1(),constraints=constraints,\
+        options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
 
 print res
 
 
 fitres = res.x[good_idx]
 
-gradient = grad(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+gradient = gradnll(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
 gradfinal = gradient[good_idx]
 
 #print gradient, "gradient"
 
-hessian = hess(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+hessian = hessnll(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+#hessian = np.eye(x.shape[0])
 
 hessmod = hessian[good_idx,:]
 hessfinal = hessmod[:,good_idx] 
@@ -181,10 +202,15 @@ if runCalibration:
 
     scale_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
 
-    scale = scaleFromPars(A,e,M)[scale_idx]
-    jacobian = jacobian(scaleFromPars)
-    jac = jacobian(A,e,M)
-    scale_err = np.matmul(np.matmul(jac.T,invhess[:3*nEtaBins,:3*nEtaBins]),jac)
+    scale = scaleFromPars(res.x)[scale_idx]
+    jacobianscale = jacobian(scaleFromPars)
+    jac = jacobianscale(res.x)
+    jac = jac[scale_idx,:]
+    jac = jac[:,good_idx]
+    scale_invhess = np.matmul(np.matmul(jac,invhess),jac.T)
+    scale_err = np.sqrt(np.diag(scale_invhess))
+    print("scale_err:")
+    print(scale_err)
     scaleplot = ROOT.TH1D("scale", "scale", scale_idx.shape[0], np.linspace(0, scale_idx.shape[0], scale_idx.shape[0]+1))
     scaleplot.GetYaxis().SetTitle('scale')
     scaleplot = array2hist(scale, scaleplot, np.sqrt(scale_err))
