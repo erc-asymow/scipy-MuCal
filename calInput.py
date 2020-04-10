@@ -95,8 +95,20 @@ data = d.AsNumpy(columns=[mass,'eta1', 'pt1', 'eta2', 'pt2'])
 dataset = np.array([data['eta1'],data['eta2'],data[mass],data['pt1'],data['pt2']])
 
 etas = np.arange(-0.8, 1.2, 0.4)
-if isJ: pts = np.array((3.,4.5,5.5,7.,20.))
-else: pts = np.array((20.,30,40,50,60,70,100))
+pts = np.quantile(dataset[3],[0.25,0.5,0.75,1.])
+print pts
+curvs = np.quantile(1./dataset[3],[0.25,0.5,0.75,1.])
+
+binscurvs = np.digitize(1./dataset[3], curvs)
+
+
+binC = []
+for i in range(1, len(pts)):
+    bin_idx = np.where(i==binscurvs)[0]
+    binC.append(np.mean(1./dataset[3][bin_idx]))
+
+binC = np.array(binC)
+print binC
 
 if isJ: mass = np.arange(2.9,3.304,0.004)
 else: mass = np.arange(75.,115.04,0.4)
