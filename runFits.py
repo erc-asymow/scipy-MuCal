@@ -1,9 +1,13 @@
 import os
-os.environ["OMP_NUM_THREADS"] = "32" # export OMP_NUM_THREADS=4
-os.environ["OPENBLAS_NUM_THREADS"] = "32" # export OPENBLAS_NUM_THREADS=4 
-os.environ["MKL_NUM_THREADS"] = "32" # export MKL_NUM_THREADS=6
-os.environ["VECLIB_MAXIMUM_THREADS"] = "32" # export VECLIB_MAXIMUM_THREADS=4
-os.environ["NUMEXPR_NUM_THREADS"] = "32" # export NUMEXPR_NUM_THREADS=6
+import multiprocessing
+
+ncpu = multiprocessing.cpu_count()
+
+os.environ["OMP_NUM_THREADS"] = str(ncpu) # export OMP_NUM_THREADS=4
+os.environ["OPENBLAS_NUM_THREADS"] = str(ncpu) # export OPENBLAS_NUM_THREADS=4 
+os.environ["MKL_NUM_THREADS"] = str(ncpu) # export MKL_NUM_THREADS=6
+os.environ["VECLIB_MAXIMUM_THREADS"] = str(ncpu) # export VECLIB_MAXIMUM_THREADS=4
+os.environ["NUMEXPR_NUM_THREADS"] = str(ncpu) # export NUMEXPR_NUM_THREADS=6
 
 #prepare possible migration to jax
 #import jax.numpy as np
@@ -82,8 +86,8 @@ print "minimising"
 xtol = np.finfo('float64').eps
 #btol = 1.e-8
 btol = 0.1
-#maxiter = 100000
-maxiter = 2
+maxiter = 100000
+#maxiter = 2
 
 sep = nEtaBins*nEtaBins*nPtBins*nPtBins
 
