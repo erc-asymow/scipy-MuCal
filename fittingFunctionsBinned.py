@@ -1,5 +1,8 @@
-from autograd import grad, hessian, jacobian
-import autograd.numpy as np
+import jax.numpy as np
+from jax import grad, hessian, jacobian, config
+from jax.scipy.special import erf
+config.update('jax_enable_x64', True)
+
 import ROOT
 import pickle
 from termcolor import colored
@@ -7,7 +10,6 @@ from scipy.optimize import minimize, SR1, LinearConstraint, check_grad, approx_f
 from scipy.optimize import Bounds
 import itertools
 from root_numpy import array2hist, fill_hist
-from autograd.scipy.special import erf
 
 import matplotlib
 matplotlib.use('agg')
@@ -19,7 +21,7 @@ def defineState(nEtaBins,nPtBins,dataset):
     sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-3.9) 
     nsig = np.log(np.where(np.sum(dataset,axis=2)>0.,np.sum(dataset,axis=2),2.))
         
-    x = np.concatenate((scale.flatten(), sigma.flatten(), nsig.flatten()),axis=None)
+    x = np.concatenate((scale.flatten(), sigma.flatten(), nsig.flatten()),axis=0)
         
     print x.shape, 'x.shape'
                 
@@ -33,7 +35,7 @@ def defineStatebkg(nEtaBins,nPtBins,dataset):
     slope = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-0.1) 
     nbkg = np.log(np.where(np.sum(dataset,axis=2)>0.,0.1*np.sum(dataset,axis=2),2.))
     
-    x = np.concatenate((scale.flatten(), sigma.flatten(), nsig.flatten(),slope.flatten(),nbkg.flatten()),axis=None)
+    x = np.concatenate((scale.flatten(), sigma.flatten(), nsig.flatten(),slope.flatten(),nbkg.flatten()),axis=0)
     
     print x.shape, 'x.shape'
                 
@@ -48,9 +50,9 @@ def defineStatePars(nEtaBins,nPtBins,dataset, isJ):
     nsig = np.log(np.where(np.sum(dataset,axis=2)>0,np.sum(dataset,axis=2),2))
 
     if isJ:
-        x = np.concatenate((A.flatten(), e.flatten(), M.flatten(), sigma.flatten(), nsig.flatten()),axis=None)
+        x = np.concatenate((A.flatten(), e.flatten(), M.flatten(), sigma.flatten(), nsig.flatten()),axis=0)
     else:
-        x = np.concatenate((A.flatten(), M.flatten(), sigma.flatten(), nsig.flatten()),axis=None)
+        x = np.concatenate((A.flatten(), M.flatten(), sigma.flatten(), nsig.flatten()),axis=0)
 
     print x.shape, 'x.shape'
                 

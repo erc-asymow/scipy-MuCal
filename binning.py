@@ -1,4 +1,9 @@
-import numpy as np
+#import numpy as np
+import jax
+import jax.numpy as np
+from jax import grad, hessian, jacobian, config
+from jax.scipy.special import erf
+config.update('jax_enable_x64', True)
 
 etas = np.arange(-0.8, 1.2, 0.4)
 #etas = np.array((-0.8,0.8))
