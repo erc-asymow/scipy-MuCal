@@ -28,7 +28,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-from fittingFunctionsBinned import defineStatePars, nllPars
+from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, plots, plotsPars
 from binning import etas, ptsJ, ptsJC, ptsZ
 import argparse
 import functools
@@ -216,7 +216,7 @@ plt.colorbar()
 plt.savefig("corrMC.pdf")
 
 if runCalibration:
-    #plotsPars(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+    plotsPars(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
 
     A = res.x[:nEtaBins, np.newaxis]
     e = res.x[nEtaBins:2*nEtaBins]
@@ -241,7 +241,7 @@ if runCalibration:
     scale_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
 
     AeM = res.x[:3*nEtaBins]
-    scale = scaleFromPars(AeM)[scale_idx]
+    scale = scaleFromPars(AeM)
     print("scale:")
     print(scale)
     jacobianscale = jax.jit(jax.jacfwd(scaleFromPars))
@@ -254,8 +254,27 @@ if runCalibration:
     print(scale_err)
     #have to use original numpy to construct the bin edges because for some reason this doesn't work with the arrays returned by jax
     scaleplot = ROOT.TH1D("scale", "scale", scale_idx.shape[0], onp.linspace(0, scale_idx.shape[0], scale_idx.shape[0]+1))
+
+    #stuff for assigning the correct label to bins in the unrolled plot
+    scale_good = scale[scale_idx]
+    scale_new = np.zeros_like(scale)
+    scale_new[scale_idx] = scale_good
+    scale_4d = np.reshape(scale_new,(nEtaBins,nEtaBins,nPtBins,nPtBins))
+
     scaleplot.GetYaxis().SetTitle('scale')
-    scaleplot = array2hist(scale, scaleplot, np.sqrt(scale_err))
+    scaleplot = array2hist(scale_good, scaleplot, np.sqrt(scale_err))
+
+    bin1D = 1
+    for ieta1 in range(nEtaBins):
+        for ieta2 in range(nEtaBins):
+            for ipt1 in range(nPtBins):
+                for ipt2 in range(nPtBins):
+
+                    if scale_4d[ieta1,ieta2,ipt1,ipt2] == 0.: continue
+                    scaleplot.GetXaxis().SetBinLabel(bin1D,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
+                    bin1D = bin1D+1
+
+    scaleplot.GetXaxis().LabelsOption("v")
 
 
     f = ROOT.TFile("calibrationMC.root", 'recreate')
@@ -267,7 +286,7 @@ if runCalibration:
     scaleplot.Write()
 
 else:
-    plots(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+    #plots(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
 
     f = ROOT.TFile("scaleMC.root", 'recreate')
     f.cd()
@@ -276,5 +295,25 @@ else:
     scaleplot.GetYaxis().SetTitle('scale')
 
     scaleplot = array2hist(fitres[:good_idx.shape[0]/3], scaleplot, np.sqrt(np.diag(invhess)[:good_idx.shape[0]/3]))
+
+    scale_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
+
+    scale = res.x[:sep]
+    scale_good = scale[scale_idx]
+    scale_new = np.zeros_like(scale)
+    scale_new[scale_idx] = scale_good
+    scale_4d = np.reshape(scale_new,(nEtaBins,nEtaBins,nPtBins,nPtBins))
+
+    bin1D = 1
+    for ieta1 in range(nEtaBins):
+        for ieta2 in range(nEtaBins):
+            for ipt1 in range(nPtBins):
+                for ipt2 in range(nPtBins):
+
+                    if scale_4d[ieta1,ieta2,ipt1,ipt2] == 0.: continue
+                    scaleplot.GetXaxis().SetBinLabel(bin1D,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
+                    bin1D = bin1D+1
+
+    scaleplot.GetXaxis().LabelsOption("v")
     scaleplot.Write()
 

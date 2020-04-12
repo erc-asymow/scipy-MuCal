@@ -208,7 +208,7 @@ def exppdf(slope):
     return pdf*massbinwidth
 
 
-def nll(x,nEtaBins,nPtBins,dataset,datasetGen):
+def nll(x,nEtaBins,nPtBins,dataset,datasetGen, isJ):
 
     sep = np.power(nEtaBins,2)*np.power(nPtBins,2)
     
@@ -216,7 +216,7 @@ def nll(x,nEtaBins,nPtBins,dataset,datasetGen):
     sigma = np.exp(x[sep:2*sep].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
 
     nsig = np.exp(x[2*sep:].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
-    sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdf(scale, sigma, dataset, datasetGen)
+    sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdf(scale, sigma, dataset, datasetGen, isJ)
 
     nll = nsig - np.sum(dataset*np.log(np.where(sigpdf>0.,sigpdf,1.)), axis =2)
         
@@ -280,7 +280,7 @@ def plots(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
     nsig = np.exp(x[2*sep:3*sep].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
     n_true = np.sum(dataset,axis=2)
     
-    sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdf(scale, sigma, dataset, datasetGen)
+    sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdf(scale, sigma, dataset, datasetGen,isJ)
 
     pdf = sigpdf
 
@@ -318,6 +318,8 @@ def plots(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
                     plt.xlim(minR, maxR)
 
                     plt.savefig('PLOTS{}MC/plot_{}{}{}{}.pdf'.format('J' if isJ else 'Z',ieta1,ieta2,ipt1,ipt2))
+                    plt.close(fig)
+
 
 
 def plotsbkg(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
