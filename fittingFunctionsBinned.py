@@ -23,7 +23,7 @@ def defineState(nEtaBins,nPtBins,dataset):
         
     x = np.concatenate((scale.flatten(), sigma.flatten(), nsig.flatten()),axis=0)
         
-    print x.shape, 'x.shape'
+    print(x.shape, 'x.shape')
                 
     return x.astype('float64')
 
@@ -37,7 +37,7 @@ def defineStatebkg(nEtaBins,nPtBins,dataset):
     
     x = np.concatenate((scale.flatten(), sigma.flatten(), nsig.flatten(),slope.flatten(),nbkg.flatten()),axis=0)
     
-    print x.shape, 'x.shape'
+    print(x.shape, 'x.shape')
                 
     return x.astype('float64')
 
@@ -54,7 +54,7 @@ def defineStatePars(nEtaBins,nPtBins,dataset, isJ):
     else:
         x = np.concatenate((A.flatten(), M.flatten(), sigma.flatten(), nsig.flatten()),axis=0)
 
-    print x.shape, 'x.shape'
+    print(x.shape, 'x.shape')
                 
     return x.astype('float64')
 
