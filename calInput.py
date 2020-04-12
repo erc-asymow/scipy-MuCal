@@ -13,13 +13,14 @@ parser.add_argument('-isJ', '--isJ', default=False, action='store_true', help='U
 parser.add_argument('-smearedMC', '--smearedMC', default=False, action='store_true', help='Use smeared gen mass in MC, omit for using reco mass')
 parser.add_argument('-isData', '--isData', default=False, action='store_true', help='Use if data, omit if MC')
 parser.add_argument('-runClosure', '--runClosure', default=False, action='store_true', help='Use to apply full calibration. If omit, rescale data for B map and leave MC as it is')
+parser.add_argument('-dataDir', '--dataDir', default='/scratchssd/emanca/wproperties-analysis/muonCalibration/', type=str, help='set the directory for input data')
 
 args = parser.parse_args()
 isJ = args.isJ
 smearedMC = args.smearedMC
 isData = args.isData
 runClosure = args.runClosure
-
+dataDir = args.dataDir
 
 ROOT.ROOT.EnableImplicitMT()
 RDF = ROOT.ROOT.RDataFrame
@@ -43,11 +44,11 @@ if not isData:
     cut+= '&& mcpt1>0. && mcpt2>0.'
 
 if isJ:
-    inputFileMC ='/scratchssd/emanca/wproperties-analysis/muonCalibration/muonTree.root'
-    inputFileD ='/scratchssd/emanca/wproperties-analysis/muonCalibration/muonTreeData.root'
+    inputFileMC ='%s/muonTree.root' % dataDir
+    inputFileD ='%s/muonTreeData.root' % dataDir
 else:
-    inputFileMC ='/scratchssd/emanca/wproperties-analysis/muonCalibration/muonTreeMCZ.root'
-    inputFileD ='/scratchssd/emanca/wproperties-analysis/muonCalibration/muonTreeDataZ.root'
+    inputFileMC ='%s/muonTreeMCZ.root' % dataDir
+    inputFileD ='%s/muonTreeDataZ.root' % dataDir
 
 if isData: inputFile = inputFileD
 else: inputFile = inputFileMC
@@ -71,12 +72,12 @@ d = d.Filter(cut)\
      .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*pt2),eta2,phi2,0.105)')\
      .Define('smearedgenMass', '(v1sm+v2sm).M()')
 
-f = ROOT.TFile.Open('/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/bFieldMap.root')
+f = ROOT.TFile.Open('%s/bFieldMap.root' % dataDir)
 bFieldMap = f.Get('bfieldMap')
 
-if runClosure: print 'taking corrections from', '/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/scale_{}_80X_13TeV.root'.format('DATA' if isData else 'MC')
+if runClosure: print 'taking corrections from', '{}/scale_{}_80X_13TeV.root'.format(dataDir, 'DATA' if isData else 'MC')
 
-f2 = ROOT.TFile.Open('/scratchssd/emanca/wproperties-analysis/muonCalibration/calibData/scale_{}_80X_13TeV.root'.format('DATA' if isData else 'MC'))
+f2 = ROOT.TFile.Open('{}/scale_{}_80X_13TeV.root'.format(dataDir, 'DATA' if isData else 'MC'))
 A = f2.Get('magnetic')
 e = f2.Get('e')
 M = f2.Get('B')

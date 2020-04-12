@@ -1,19 +1,20 @@
 import os
-os.environ["OMP_NUM_THREADS"] = "64" # export OMP_NUM_THREADS=4
-os.environ["OPENBLAS_NUM_THREADS"] = "64" # export OPENBLAS_NUM_THREADS=4 
-os.environ["MKL_NUM_THREADS"] = "64" # export MKL_NUM_THREADS=6
-os.environ["VECLIB_MAXIMUM_THREADS"] = "64" # export VECLIB_MAXIMUM_THREADS=4
-os.environ["NUMEXPR_NUM_THREADS"] = "64" # export NUMEXPR_NUM_THREADS=6
+import multiprocessing
 
-#prepare possible migration to jax
-#import jax.numpy as np
-#from jax import grad, hessian, jacobian, config
-#from jax.scipy.special import erf
-#config.update('jax_enable_x64', True)
+ncpu = multiprocessing.cpu_count()
 
-from autograd import grad, hessian, jacobian
-import autograd.numpy as np
-from autograd.scipy.special import erf
+os.environ["OMP_NUM_THREADS"] = str(ncpu)
+os.environ["OPENBLAS_NUM_THREADS"] = str(ncpu)
+os.environ["MKL_NUM_THREADS"] = str(ncpu)
+os.environ["VECLIB_MAXIMUM_THREADS"] = str(ncpu)
+os.environ["NUMEXPR_NUM_THREADS"] = str(ncpu)
+
+import jax
+import jax.numpy as np
+import numpy as onp
+from jax import grad, hessian, jacobian, config
+from jax.scipy.special import erf
+config.update('jax_enable_x64', True)
 
 import ROOT
 import pickle
@@ -30,13 +31,50 @@ import matplotlib.pyplot as plt
 from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, plots, plotsPars
 from binning import etas, ptsJ, ptsJC, ptsZ
 import argparse
+import functools
 
+#slower but lower memory usage calculation of hessian which
+#explicitly loops over hessian rows
+def hessianlowmem(fun):
+    def _hessianlowmem(x, f):
+        _, hvp = jax.linearize(jax.grad(f), x)
+        hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
+    return functools.partial(_hessianlowmem, f=fun)
 
-def scaleFromPars(x):
+    
+#compromise version which vectorizes the calculation, but only partly to save memory
+def hessianoptsplit(fun, vsize=4):
+    def _hessianopt(x, f):
+        _, hvp = jax.linearize(jax.grad(f), x)
+        hvp = jax.jit(hvp)
+        n = np.prod(x.shape)
+        idxs =  np.arange(vsize, n, vsize)
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        splitbasis = np.split(basis,idxs)
+        vhvp = jax.vmap(hvp)
+        vhvp = jax.jit(vhvp)
+        return np.concatenate([vhvp(b) for b in splitbasis]).reshape(x.shape + x.shape)
+    return functools.partial(_hessianopt, f=fun)
 
-    A = x[:nEtaBins, np.newaxis]
-    e = x[nEtaBins:2*nEtaBins]
-    M = x[2*nEtaBins:3*nEtaBins]
+#optimized version which is faster than the built-in hessian for some reason
+# **TODO** follow up with jax authors to understand why
+def hessianopt(fun):
+    def _hessianopt(x, f):
+        _, hvp = jax.linearize(jax.grad(f), x)
+        hvp = jax.jit(hvp)
+        vhvp = jax.vmap(hvp)
+        vhvp = jax.jit(vhvp)
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        return vhvp(basis).reshape(x.shape + x.shape)
+    return functools.partial(_hessianopt, f=fun)
+
+def scaleFromPars(AeM):
+
+    A = AeM[:nEtaBins, np.newaxis]
+    e = AeM[nEtaBins:2*nEtaBins]
+    M = AeM[2*nEtaBins:3*nEtaBins]
 
     etasC = (etas[:-1] + etas[1:]) / 2.
 
@@ -93,17 +131,17 @@ good_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
 
 if runCalibration:
 
-    bad_idx = np.concatenate((idx, idx+sep), axis=None)
-    lb_scale = np.concatenate((0.009*np.ones(nEtaBins),-0.01*np.ones(nEtaBins), -1e-5*np.ones(nEtaBins)),axis=None)
-    ub_scale = np.concatenate((1.001*np.ones(nEtaBins),0.01*np.ones(nEtaBins), 1e-5*np.ones(nEtaBins)),axis=None)
+    bad_idx = np.concatenate((idx, idx+sep), axis=0)
+    lb_scale = np.concatenate((0.009*np.ones(nEtaBins),-0.01*np.ones(nEtaBins), -1e-5*np.ones(nEtaBins)),axis=0)
+    ub_scale = np.concatenate((1.001*np.ones(nEtaBins),0.01*np.ones(nEtaBins), 1e-5*np.ones(nEtaBins)),axis=0)
     pars_idx = np.linspace(0, nEtaBins-1,nEtaBins,dtype=np.int16)
-    good_idx = np.concatenate((pars_idx,nEtaBins+pars_idx,2*nEtaBins+pars_idx,3*nEtaBins+good_idx, 3*nEtaBins+good_idx+sep), axis=None)
+    good_idx = np.concatenate((pars_idx,nEtaBins+pars_idx,2*nEtaBins+pars_idx,3*nEtaBins+good_idx, 3*nEtaBins+good_idx+sep), axis=0)
 
 else:   
-    bad_idx = np.concatenate((idx, idx+sep,idx+2*sep), axis=None)
+    bad_idx = np.concatenate((idx, idx+sep,idx+2*sep), axis=0)
     lb_scale = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),0.).flatten()
     ub_scale = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),2.).flatten()
-    good_idx = np.concatenate((good_idx, good_idx+sep,good_idx+2*sep), axis=None)
+    good_idx = np.concatenate((good_idx, good_idx+sep,good_idx+2*sep), axis=0)
 
 lb_sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-np.inf).flatten()
 lb_nsig = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-np.inf).flatten()
@@ -111,45 +149,45 @@ lb_nsig = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-np.inf).flatten()
 ub_sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),np.inf).flatten()
 ub_nsig = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),np.inf).flatten()
 
-lb = np.concatenate((lb_scale,lb_sigma,lb_nsig),axis=None)
-ub = np.concatenate((ub_scale,ub_sigma,ub_nsig),axis=None)
+lb = np.concatenate((lb_scale,lb_sigma,lb_nsig),axis=0)
+ub = np.concatenate((ub_scale,ub_sigma,ub_nsig),axis=0)
 
 #bounds for fixed parameters must be equal to the starting values
 if runCalibration:
-    lb[3*nEtaBins+bad_idx] = x[3*nEtaBins+bad_idx]
-    ub[3*nEtaBins+bad_idx] = x[3*nEtaBins+bad_idx]
+    jax.ops.index_update(lb, 3*nEtaBins+bad_idx, x[3*nEtaBins+bad_idx])
+    jax.ops.index_update(ub, 3*nEtaBins+bad_idx, x[3*nEtaBins+bad_idx])
 else:
-    lb[bad_idx] = x[bad_idx]
-    ub[bad_idx] = x[bad_idx]
+    jax.ops.index_update(lb, bad_idx, x[bad_idx])
+    jax.ops.index_update(ub, bad_idx, x[bad_idx])
 
 constraints = LinearConstraint( A=np.eye(x.shape[0]), lb=lb, ub=ub,keep_feasible=True )
 
 if runCalibration:
-    gradnll = grad(nllPars)
-    hessnll = hessian(nllPars)
-
-    res = minimize(nllPars, x, args=(nEtaBins,nPtBins,datasetJ,datasetJgen,isJ),\
-        method = 'trust-constr',jac = gradnll, hess=SR1(),constraints=constraints,\
-        options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
+    fnll = nllPars
 else:
-    gradnll = grad(nll)
-    hessnll = hessian(nll)
+    fnll = nll
 
-    res = minimize(nll, x, args=(nEtaBins,nPtBins,datasetJ,datasetJgen,isJ),\
-        method = 'trust-constr',jac = gradnll, hess=SR1(),constraints=constraints,\
-        options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
+#convert fnll to single parameter function fnllx(x)
+fnllx = functools.partial(nllPars, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=datasetJ, datasetGen=datasetJgen, isJ=isJ)
+
+fgradnll = jax.jit(jax.value_and_grad(fnllx))
+hessnll = hessianlowmem(fnllx)
+
+res = minimize(fgradnll, x,\
+    method = 'trust-constr',jac = True, hess=SR1(),constraints=constraints,\
+    options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
 
 print res
 
 
 fitres = res.x[good_idx]
 
-gradient = gradnll(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+val,gradient = fgradnll(res.x)
 gradfinal = gradient[good_idx]
 
 #print gradient, "gradient"
 
-hessian = hessnll(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+hessian = hessnll(res.x)
 #hessian = np.eye(x.shape[0])
 
 hessmod = hessian[good_idx,:]
@@ -202,20 +240,27 @@ if runCalibration:
 
     scale_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
 
-    scale = scaleFromPars(res.x)
+    AeM = res.x[:3*nEtaBins]
+    scale = scaleFromPars(AeM)
+    print("scale:")
+    print(scale)
+    jacobianscale = jax.jit(jax.jacfwd(scaleFromPars))
+    jac = jacobianscale(AeM)
+    jac = jac[scale_idx,:]
+    invhessAeM = invhess[:3*nEtaBins,:3*nEtaBins]
+    scale_invhess = np.matmul(np.matmul(jac,invhessAeM),jac.T)
+    scale_err = np.sqrt(np.diag(scale_invhess))
+    print("scale_err:")
+    print(scale_err)
+    #have to use original numpy to construct the bin edges because for some reason this doesn't work with the arrays returned by jax
+    scaleplot = ROOT.TH1D("scale", "scale", scale_idx.shape[0], onp.linspace(0, scale_idx.shape[0], scale_idx.shape[0]+1))
+
+    #stuff for assigning the correct label to bins in the unrolled plot
     scale_good = scale[scale_idx]
     scale_new = np.zeros_like(scale)
     scale_new[scale_idx] = scale_good
     scale_4d = np.reshape(scale_new,(nEtaBins,nEtaBins,nPtBins,nPtBins))
 
-    jacobianscale = jacobian(scaleFromPars)
-    jac = jacobianscale(res.x)
-    jac = jac[scale_idx,:]
-    jac = jac[:,good_idx]
-    scale_invhess = np.matmul(np.matmul(jac,invhess),jac.T)
-    scale_err = np.diag(scale_invhess)
-    
-    scaleplot = ROOT.TH1D("scale", "scale", scale_idx.shape[0], np.linspace(0, scale_idx.shape[0], scale_idx.shape[0]+1))
     scaleplot.GetYaxis().SetTitle('scale')
     scaleplot = array2hist(scale_good, scaleplot, np.sqrt(scale_err))
 
