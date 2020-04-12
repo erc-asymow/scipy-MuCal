@@ -131,7 +131,7 @@ def kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ):
     else:
         pts= np.array((20.,30,40,50,60,70,100),dtype='float64')
     
-    etas = np.arange(-0.8, 1.2, 0.4)
+    etas = np.arange(-0.8, 1.2, 0.4, dtype='float64')
     etasC = (etas[:-1] + etas[1:]) / 2.
 
     s = np.sin(2*np.arctan(np.exp(-etasC)))
