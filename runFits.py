@@ -29,7 +29,6 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, plots, plotsPars
-from binning import etas, ptsJ, ptsJC, ptsZ
 import argparse
 import functools
 
@@ -69,9 +68,9 @@ def hessianopt(fun):
         return vhvp(basis).reshape(x.shape + x.shape)
     return functools.partial(_hessianopt, f=fun)
 
-def scaleFromPars(AeM):
+def scaleFromPars(AeM, etas, binCenters1, binCenters2):
 
-    A = AeM[:nEtaBins, np.newaxis]
+    A = AeM[:nEtaBins]
     e = AeM[nEtaBins:2*nEtaBins]
     M = AeM[2*nEtaBins:3*nEtaBins]
 
@@ -79,12 +78,24 @@ def scaleFromPars(AeM):
 
     s = np.sin(2*np.arctan(np.exp(-etasC)))
     
-    c = np.array((0.1703978,0.21041214,0.26139158),dtype='float64') #bin centers in curvature
+    c1 = binCenters1
+    c2 = binCenters2
 
-    term1 = A-s[:,np.newaxis]*np.tensordot(e,c,axes=0)+np.tensordot(M,1./c,axes=0)
-    term2 = A-s[:,np.newaxis]*np.tensordot(e,c,axes=0)-np.tensordot(M,1./c,axes=0)
+    #print c1, c2
 
-    scale = np.sqrt(np.swapaxes(np.tensordot(term1,term2, axes=0),1,2))
+    A1 = A[:,np.newaxis,np.newaxis,np.newaxis]
+    e1 = e[:,np.newaxis,np.newaxis,np.newaxis]
+    M1 = M[:,np.newaxis,np.newaxis,np.newaxis]
+
+    A2 = A[np.newaxis,:,np.newaxis,np.newaxis]
+    e2 = e[np.newaxis,:,np.newaxis,np.newaxis]
+    M2 = M[np.newaxis,:,np.newaxis,np.newaxis]
+
+    term1 = A1-s[:,np.newaxis,np.newaxis,np.newaxis]*e1*c1+M1/c1
+    term2 = A2-s[np.newaxis,:,np.newaxis,np.newaxis]*e2*c2-M2/c2
+    #combos = np.swapaxes(np.tensordot(term1,term2, axes=0),1,2)
+    combos = term1*term2
+    scale = np.sqrt(combos)
 
     return scale.flatten()
 
@@ -97,21 +108,26 @@ args = parser.parse_args()
 isJ = args.isJ
 runCalibration = args.runCalibration
 
-fileJ = open("calInput{}MC_4etaBins_3ptBins.pkl".format('J' if isJ else 'Z'), "rb")
-datasetJ = pickle.load(fileJ)
-fileJgen = open("calInput{}MCgen_4etaBins_3ptBins.pkl".format('J' if isJ else 'Z'), "rb")
-datasetJgen = pickle.load(fileJgen)
+file = open("calInput{}MC_4etaBins_3ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+pkg = pickle.load(file)
 
-pts = ptsJ if isJ else ptsZ
-print pts
+dataset = pkg['dataset']
+etas = pkg['edges'][0]
+pts = pkg['edges'][3]
+binCenters1 = pkg['binCenters1']
+binCenters2 = pkg['binCenters2']
+
+
+filegen = open("calInput{}MCgen_4etaBins_3ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+datasetgen = pickle.load(filegen)
 
 nEtaBins = len(etas)-1
 nPtBins = len(pts)-1
 
 if runCalibration:
-    x = defineStatePars(nEtaBins,nPtBins, datasetJ, isJ)
+    x = defineStatePars(nEtaBins,nPtBins, dataset, isJ)
 else:
-    x = defineState(nEtaBins,nPtBins, datasetJ)
+    x = defineState(nEtaBins,nPtBins, dataset)
 
 
 print "minimising"
@@ -124,9 +140,9 @@ maxiter = 100000
 
 sep = nEtaBins*nEtaBins*nPtBins*nPtBins
 
-idx = np.where((np.sum(datasetJgen,axis=2)<=1000.).flatten())[0]
+idx = np.where((np.sum(datasetgen,axis=2)<=2000.).flatten())[0]
 
-good_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
+good_idx = np.where((np.sum(datasetgen,axis=2)>2000.).flatten())[0]
 
 if runCalibration:
 
@@ -163,13 +179,16 @@ constraints = LinearConstraint( A=np.eye(x.shape[0]), lb=lb, ub=ub,keep_feasible
 
 if runCalibration:
     fnll = nllPars
+    #convert fnll to single parameter function fnllx(x)
+    fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, isJ=isJ, etas=etas, binCenters1=binCenters1, binCenters2=binCenters2)
 else:
     fnll = nll
-
-#convert fnll to single parameter function fnllx(x)
-fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=datasetJ, datasetGen=datasetJgen, isJ=isJ)
+    #convert fnll to single parameter function fnllx(x)
+    fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, isJ=isJ)
 
 fgradnll = jax.jit(jax.value_and_grad(fnllx))
+#fgradnll = jax.value_and_grad(fnllx)
+
 hessnll = hessianlowmem(fnllx)
 
 res = minimize(fgradnll, x,\
@@ -215,7 +234,7 @@ plt.colorbar()
 plt.savefig("corrMC.pdf")
 
 if runCalibration:
-    plotsPars(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+    #plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,isJ,etas, binCenters1, binCenters2)
 
     A = res.x[:nEtaBins, np.newaxis]
     e = res.x[nEtaBins:2*nEtaBins]
@@ -237,13 +256,13 @@ if runCalibration:
     he.GetXaxis().SetTitle('#eta')
     hM.GetXaxis().SetTitle('#eta')
 
-    scale_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
+    scale_idx = np.where((np.sum(datasetgen,axis=2)>2000.).flatten())[0]
 
     AeM = res.x[:3*nEtaBins]
-    scale = scaleFromPars(AeM)
+    scale = scaleFromPars(AeM, etas, binCenters1, binCenters2)
     
     jacobianscale = jax.jit(jax.jacfwd(scaleFromPars))
-    jac = jacobianscale(AeM)
+    jac = jacobianscale(AeM,etas, binCenters1, binCenters2)
     jac = jac[scale_idx,:]
     invhessAeM = invhess[:3*nEtaBins,:3*nEtaBins]
     scale_invhess = np.matmul(np.matmul(jac,invhessAeM),jac.T)
@@ -283,7 +302,7 @@ if runCalibration:
     scaleplot.Write()
 
 else:
-    plots(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+    plots(res.x,nEtaBins,nPtBins,dataset,datasetgen,isJ)
 
     f = ROOT.TFile("scaleMC.root", 'recreate')
     f.cd()
@@ -293,7 +312,7 @@ else:
 
     scaleplot = array2hist(fitres[:good_idx.shape[0]/3], scaleplot, np.sqrt(np.diag(invhess)[:good_idx.shape[0]/3]))
 
-    scale_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
+    scale_idx = np.where((np.sum(datasetgen,axis=2)>2000.).flatten())[0]
 
     scale = res.x[:sep]
     scale_good = scale[scale_idx]

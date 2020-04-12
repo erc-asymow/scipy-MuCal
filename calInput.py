@@ -1,10 +1,11 @@
 import ROOT
 import pickle
 import numpy as np
-from header import *
+from header import CastToRNode
 from root_numpy import array2hist, fill_hist
 import argparse
 import itertools
+from scipy.stats import binned_statistic_dd
 
 ROOT.gSystem.Load('bin/libKalman.so')
 
@@ -13,7 +14,7 @@ parser.add_argument('-isJ', '--isJ', default=False, action='store_true', help='U
 parser.add_argument('-smearedMC', '--smearedMC', default=False, action='store_true', help='Use smeared gen mass in MC, omit for using reco mass')
 parser.add_argument('-isData', '--isData', default=False, action='store_true', help='Use if data, omit if MC')
 parser.add_argument('-runClosure', '--runClosure', default=False, action='store_true', help='Use to apply full calibration. If omit, rescale data for B map and leave MC as it is')
-parser.add_argument('-dataDir', '--dataDir', default='/scratchssd/emanca/wproperties-analysis/muonCalibration/', type=str, help='set the directory for input data')
+parser.add_argument('-dataDir', '--dataDir', default='/scratchssd/emanca/wproperties-analysis/muonCalibration/Minimisation', type=str, help='set the directory for input data')
 
 args = parser.parse_args()
 isJ = args.isJ
@@ -65,12 +66,12 @@ ROOT.gInterpreter.ProcessLine('''
 print cut
 
 d = d.Filter(cut)\
-	 .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105)')\
-     .Define('v2', 'ROOT::Math::PtEtaPhiMVector(pt2,eta2,phi2,0.105)')\
-	 .Define('rapidity', 'float((v1+v2).Rapidity())').Filter('fabs(rapidity)<2.4')\
-     .Define('v1sm', 'ROOT::Math::PtEtaPhiMVector(mcpt1+myRndGens[rdfslot_].Gaus(0., cErr1*pt1),eta1,phi1,0.105)')\
-     .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*pt2),eta2,phi2,0.105)')\
-     .Define('smearedgenMass', '(v1sm+v2sm).M()')
+    .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105)')\
+    .Define('v2', 'ROOT::Math::PtEtaPhiMVector(pt2,eta2,phi2,0.105)')\
+    .Define('rapidity', 'float((v1+v2).Rapidity())').Filter('fabs(rapidity)<2.4')\
+    .Define('v1sm', 'ROOT::Math::PtEtaPhiMVector(mcpt1+myRndGens[rdfslot_].Gaus(0., cErr1*pt1),eta1,phi1,0.105)')\
+    .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*pt2),eta2,phi2,0.105)')\
+    .Define('smearedgenMass', '(v1sm+v2sm).M()')
 
 f = ROOT.TFile.Open('%s/bFieldMap.root' % dataDir)
 bFieldMap = f.Get('bfieldMap')
@@ -94,29 +95,17 @@ if not isData and smearedMC:
 data = d.AsNumpy(columns=[mass,'eta1', 'pt1', 'eta2', 'pt2'])
 
 dataset = np.array([data['eta1'],data['eta2'],data[mass],data['pt1'],data['pt2']])
+dataset2 = np.array([data['eta1'],data['eta2'],data['pt1'],data['pt2']])
 
 etas = np.arange(-0.8, 1.2, 0.4)
 pts = np.quantile(dataset[3],[0.25,0.5,0.75,1.])
-print pts
-curvs = np.quantile(1./dataset[3],[0.25,0.5,0.75,1.])
 
-binscurvs = np.digitize(1./dataset[3], curvs)
-
-
-binC = []
-for i in range(1, len(pts)):
-    bin_idx = np.where(i==binscurvs)[0]
-    binC.append(np.mean(1./dataset[3][bin_idx]))
-
-binC = np.array(binC)
-print binC
+ret1 = binned_statistic_dd(dataset2.T, 1./dataset[3], bins = [etas,etas,pts,pts], statistic='mean')
+ret2 = binned_statistic_dd(dataset2.T, 1./dataset[4], bins = [etas,etas,pts,pts], statistic='mean')
 
 if isJ: mass = np.arange(2.9,3.304,0.004)
 else: mass = np.arange(75.,115.04,0.4)
-#etas = np.array((-0.8,0.8))
-#pts = np.array((3.,20.))
 
-#phis = np.arange(-np.pi, np.pi+2.*np.pi/6.,2.*np.pi/6.)
 phis = np.array((-np.pi,np.pi))
 
 histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,mass,pts,pts])
@@ -131,12 +120,14 @@ else:
 pklfile+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(pts)-1)
 pklfile+='.pkl'
 
-filehandler = open(pklfile, 'w')
-pickle.dump(histo, filehandler)
+pkg = {}
+pkg['dataset'] = histo
+pkg['edges'] = edges
+pkg['binCenters1'] = ret1.statistic
+pkg['binCenters2'] = ret2.statistic
 
-#mass = np.arange(3.05,3.1501,0.0001)
-#mass = np.arange(2.8,3.4,0.0006)
-#print len(mass), mass
+filehandler = open(pklfile, 'w')
+pickle.dump(pkg, filehandler)
 
 if not isData:
 

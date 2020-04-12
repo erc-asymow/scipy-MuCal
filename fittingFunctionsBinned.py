@@ -112,7 +112,7 @@ def kernelpdf(scale, sigma, dataset, datasetGen, isJ):
     
     return pdf
 
-def kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ):
+def kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ, etas, binCenters1, binCenters2):
 
     #dataset is binned as eta1,eta2,mass,pt2,pt1
 
@@ -126,23 +126,27 @@ def kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ):
     valsReco = np.linspace(minR[0],maxR[0],100)
     valsGen = valsReco
 
-    if isJ:
-        pts = np.array((4.31800938,5.2385931,6.77045488,930.92053223),dtype='float64') #quantiles
-    else:
-        pts= np.array((20.,30,40,50,60,70,100),dtype='float64')
-    
-    etas = np.arange(-0.8, 1.2, 0.4, dtype='float64')
     etasC = (etas[:-1] + etas[1:]) / 2.
 
     s = np.sin(2*np.arctan(np.exp(-etasC)))
     
-    c = np.array((0.1703978,0.21041214,0.26139158),dtype='float64') #bin centers in curvature
+    c1 = binCenters1
+    c2 = binCenters2
 
-    term1 = A-s[:,np.newaxis]*np.tensordot(e,c,axes=0)+np.tensordot(M,1./c,axes=0) 
-    term2 = A-s[:,np.newaxis]*np.tensordot(e,c,axes=0)-np.tensordot(M,1./c,axes=0) 
+    #print c1, c2
 
-    combos = np.swapaxes(np.tensordot(term1,term2, axes=0),1,2)
+    A1 = A[:,np.newaxis,np.newaxis,np.newaxis]
+    e1 = e[:,np.newaxis,np.newaxis,np.newaxis]
+    M1 = M[:,np.newaxis,np.newaxis,np.newaxis]
 
+    A2 = A[np.newaxis,:,np.newaxis,np.newaxis]
+    e2 = e[np.newaxis,:,np.newaxis,np.newaxis]
+    M2 = M[np.newaxis,:,np.newaxis,np.newaxis]
+
+    term1 = A1-s[:,np.newaxis,np.newaxis,np.newaxis]*e1*c1+M1/c1
+    term2 = A2-s[np.newaxis,:,np.newaxis,np.newaxis]*e2*c2-M2/c2
+    #combos = np.swapaxes(np.tensordot(term1,term2, axes=0),1,2)
+    combos = term1*term2
     scale = np.sqrt(combos)
 
     h= np.tensordot(scale,valsGen,axes=0) #get a 5D vector with np.newaxis with all possible combos of kinematics and gen mass values
@@ -240,11 +244,11 @@ def nllbkg(x,nEtaBins,nPtBins,dataset,datasetGen):
         
     return np.sum(nll)
 
-def nllPars(x,nEtaBins,nPtBins,dataset,datasetGen, isJ):
+def nllPars(x,nEtaBins,nPtBins,dataset,datasetGen, isJ, etas, binCenters1, binCenters2):
 
     sep = np.power(nEtaBins,2)*np.power(nPtBins,2)
 
-    A = x[:nEtaBins,np.newaxis]
+    A = x[:nEtaBins]
 
     if isJ:
         e = x[nEtaBins:2*nEtaBins]
@@ -258,7 +262,7 @@ def nllPars(x,nEtaBins,nPtBins,dataset,datasetGen, isJ):
         nsig = np.exp(x[2*nEtaBins+sep:].reshape((nEtaBins,nEtaBins,nPtBins,nPtBins)))
 
     
-    sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ)
+    sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ, etas, binCenters1, binCenters2)
 
     nll = nsig - np.sum(dataset*np.log(np.where(sigpdf>0.,sigpdf,1.)), axis =2)
         
