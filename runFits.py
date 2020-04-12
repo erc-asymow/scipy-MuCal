@@ -1,9 +1,9 @@
 import os
-os.environ["OMP_NUM_THREADS"] = "32" # export OMP_NUM_THREADS=4
-os.environ["OPENBLAS_NUM_THREADS"] = "32" # export OPENBLAS_NUM_THREADS=4 
-os.environ["MKL_NUM_THREADS"] = "32" # export MKL_NUM_THREADS=6
-os.environ["VECLIB_MAXIMUM_THREADS"] = "32" # export VECLIB_MAXIMUM_THREADS=4
-os.environ["NUMEXPR_NUM_THREADS"] = "32" # export NUMEXPR_NUM_THREADS=6
+os.environ["OMP_NUM_THREADS"] = "64" # export OMP_NUM_THREADS=4
+os.environ["OPENBLAS_NUM_THREADS"] = "64" # export OPENBLAS_NUM_THREADS=4 
+os.environ["MKL_NUM_THREADS"] = "64" # export MKL_NUM_THREADS=6
+os.environ["VECLIB_MAXIMUM_THREADS"] = "64" # export VECLIB_MAXIMUM_THREADS=4
+os.environ["NUMEXPR_NUM_THREADS"] = "64" # export NUMEXPR_NUM_THREADS=6
 
 #prepare possible migration to jax
 #import jax.numpy as np
@@ -27,7 +27,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-from fittingFunctionsBinned import defineStatePars, nllPars
+from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, plots, plotsPars
 from binning import etas, ptsJ, ptsJC, ptsZ
 import argparse
 
@@ -82,8 +82,8 @@ print "minimising"
 xtol = np.finfo('float64').eps
 #btol = 1.e-8
 btol = 0.1
-#maxiter = 100000
-maxiter = 2
+maxiter = 100000
+#maxiter = 2
 
 sep = nEtaBins*nEtaBins*nPtBins*nPtBins
 
@@ -178,7 +178,7 @@ plt.colorbar()
 plt.savefig("corrMC.pdf")
 
 if runCalibration:
-    #plotsPars(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+    plotsPars(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
 
     A = res.x[:nEtaBins, np.newaxis]
     e = res.x[nEtaBins:2*nEtaBins]
@@ -202,18 +202,34 @@ if runCalibration:
 
     scale_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
 
-    scale = scaleFromPars(res.x)[scale_idx]
+    scale = scaleFromPars(res.x)
+    scale_good = scale[scale_idx]
+    scale_new = np.zeros_like(scale)
+    scale_new[scale_idx] = scale_good
+    scale_4d = np.reshape(scale_new,(nEtaBins,nEtaBins,nPtBins,nPtBins))
+
     jacobianscale = jacobian(scaleFromPars)
     jac = jacobianscale(res.x)
     jac = jac[scale_idx,:]
     jac = jac[:,good_idx]
     scale_invhess = np.matmul(np.matmul(jac,invhess),jac.T)
-    scale_err = np.sqrt(np.diag(scale_invhess))
-    print("scale_err:")
-    print(scale_err)
+    scale_err = np.diag(scale_invhess)
+    
     scaleplot = ROOT.TH1D("scale", "scale", scale_idx.shape[0], np.linspace(0, scale_idx.shape[0], scale_idx.shape[0]+1))
     scaleplot.GetYaxis().SetTitle('scale')
-    scaleplot = array2hist(scale, scaleplot, np.sqrt(scale_err))
+    scaleplot = array2hist(scale_good, scaleplot, np.sqrt(scale_err))
+
+    bin1D = 1
+    for ieta1 in range(nEtaBins):
+        for ieta2 in range(nEtaBins):
+            for ipt1 in range(nPtBins):
+                for ipt2 in range(nPtBins):
+
+                    if scale_4d[ieta1,ieta2,ipt1,ipt2] == 0.: continue
+                    scaleplot.GetXaxis().SetBinLabel(bin1D,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
+                    bin1D = bin1D+1
+
+    scaleplot.GetXaxis().LabelsOption("v")
 
 
     f = ROOT.TFile("calibrationMC.root", 'recreate')
@@ -225,7 +241,7 @@ if runCalibration:
     scaleplot.Write()
 
 else:
-    plots(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+    #plots(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
 
     f = ROOT.TFile("scaleMC.root", 'recreate')
     f.cd()
@@ -234,5 +250,25 @@ else:
     scaleplot.GetYaxis().SetTitle('scale')
 
     scaleplot = array2hist(fitres[:good_idx.shape[0]/3], scaleplot, np.sqrt(np.diag(invhess)[:good_idx.shape[0]/3]))
+
+    scale_idx = np.where((np.sum(datasetJgen,axis=2)>1000.).flatten())[0]
+
+    scale = res.x[:sep]
+    scale_good = scale[scale_idx]
+    scale_new = np.zeros_like(scale)
+    scale_new[scale_idx] = scale_good
+    scale_4d = np.reshape(scale_new,(nEtaBins,nEtaBins,nPtBins,nPtBins))
+
+    bin1D = 1
+    for ieta1 in range(nEtaBins):
+        for ieta2 in range(nEtaBins):
+            for ipt1 in range(nPtBins):
+                for ipt2 in range(nPtBins):
+
+                    if scale_4d[ieta1,ieta2,ipt1,ipt2] == 0.: continue
+                    scaleplot.GetXaxis().SetBinLabel(bin1D,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
+                    bin1D = bin1D+1
+
+    scaleplot.GetXaxis().LabelsOption("v")
     scaleplot.Write()
 
