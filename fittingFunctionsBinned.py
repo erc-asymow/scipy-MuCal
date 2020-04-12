@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 def defineState(nEtaBins,nPtBins,dataset):
 
-    scale = np.ones((nEtaBins,nEtaBins,nPtBins,nPtBins)) + np.random.normal(0, 0.0005, (nEtaBins,nEtaBins,nPtBins,nPtBins))
+    scale = np.ones((nEtaBins,nEtaBins,nPtBins,nPtBins)) #+ np.random.normal(0, 0.0005, (nEtaBins,nEtaBins,nPtBins,nPtBins))
     sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-3.9) 
     nsig = np.log(np.where(np.sum(dataset,axis=2)>0.,np.sum(dataset,axis=2),2.))
         
@@ -29,7 +29,7 @@ def defineState(nEtaBins,nPtBins,dataset):
 
 def defineStatebkg(nEtaBins,nPtBins,dataset):
 
-    scale = np.ones((nEtaBins,nEtaBins,nPtBins,nPtBins)) + np.random.normal(0, 0.0005, (nEtaBins,nEtaBins,nPtBins,nPtBins))
+    scale = np.ones((nEtaBins,nEtaBins,nPtBins,nPtBins)) #+ np.random.normal(0, 0.0005, (nEtaBins,nEtaBins,nPtBins,nPtBins))
     sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-3.9) 
     nsig = np.log(np.where(np.sum(dataset,axis=2)>0.,0.9*np.sum(dataset,axis=2),2.))
     slope = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-0.1) 

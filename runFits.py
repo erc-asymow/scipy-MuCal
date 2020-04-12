@@ -43,7 +43,6 @@ def hessianlowmem(fun):
         return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
     return functools.partial(_hessianlowmem, f=fun)
 
-    
 #compromise version which vectorizes the calculation, but only partly to save memory
 def hessianoptsplit(fun, vsize=4):
     def _hessianopt(x, f):
@@ -154,11 +153,11 @@ ub = np.concatenate((ub_scale,ub_sigma,ub_nsig),axis=0)
 
 #bounds for fixed parameters must be equal to the starting values
 if runCalibration:
-    jax.ops.index_update(lb, 3*nEtaBins+bad_idx, x[3*nEtaBins+bad_idx])
-    jax.ops.index_update(ub, 3*nEtaBins+bad_idx, x[3*nEtaBins+bad_idx])
+    lb = jax.ops.index_update(lb, 3*nEtaBins+bad_idx, x[3*nEtaBins+bad_idx])
+    ub = jax.ops.index_update(ub, 3*nEtaBins+bad_idx, x[3*nEtaBins+bad_idx])
 else:
-    jax.ops.index_update(lb, bad_idx, x[bad_idx])
-    jax.ops.index_update(ub, bad_idx, x[bad_idx])
+    lb = jax.ops.index_update(lb, bad_idx, x[bad_idx])
+    ub = jax.ops.index_update(ub, bad_idx, x[bad_idx])
 
 constraints = LinearConstraint( A=np.eye(x.shape[0]), lb=lb, ub=ub,keep_feasible=True )
 
@@ -168,7 +167,7 @@ else:
     fnll = nll
 
 #convert fnll to single parameter function fnllx(x)
-fnllx = functools.partial(nllPars, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=datasetJ, datasetGen=datasetJgen, isJ=isJ)
+fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=datasetJ, datasetGen=datasetJgen, isJ=isJ)
 
 fgradnll = jax.jit(jax.value_and_grad(fnllx))
 hessnll = hessianlowmem(fnllx)
@@ -242,27 +241,25 @@ if runCalibration:
 
     AeM = res.x[:3*nEtaBins]
     scale = scaleFromPars(AeM)
-    print("scale:")
-    print(scale)
+    
     jacobianscale = jax.jit(jax.jacfwd(scaleFromPars))
     jac = jacobianscale(AeM)
     jac = jac[scale_idx,:]
     invhessAeM = invhess[:3*nEtaBins,:3*nEtaBins]
     scale_invhess = np.matmul(np.matmul(jac,invhessAeM),jac.T)
     scale_err = np.sqrt(np.diag(scale_invhess))
-    print("scale_err:")
-    print(scale_err)
+    
     #have to use original numpy to construct the bin edges because for some reason this doesn't work with the arrays returned by jax
     scaleplot = ROOT.TH1D("scale", "scale", scale_idx.shape[0], onp.linspace(0, scale_idx.shape[0], scale_idx.shape[0]+1))
 
     #stuff for assigning the correct label to bins in the unrolled plot
     scale_good = scale[scale_idx]
     scale_new = np.zeros_like(scale)
-    scale_new[scale_idx] = scale_good
+    scale_new = jax.ops.index_update(scale_new, scale_idx, scale_good)
     scale_4d = np.reshape(scale_new,(nEtaBins,nEtaBins,nPtBins,nPtBins))
 
     scaleplot.GetYaxis().SetTitle('scale')
-    scaleplot = array2hist(scale_good, scaleplot, np.sqrt(scale_err))
+    scaleplot = array2hist(scale_good, scaleplot, scale_err)
 
     bin1D = 1
     for ieta1 in range(nEtaBins):
@@ -286,12 +283,12 @@ if runCalibration:
     scaleplot.Write()
 
 else:
-    #plots(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
+    plots(res.x,nEtaBins,nPtBins,datasetJ,datasetJgen,isJ)
 
     f = ROOT.TFile("scaleMC.root", 'recreate')
     f.cd()
 
-    scaleplot = ROOT.TH1D("scale", "scale", good_idx.shape[0]/3, np.linspace(0, good_idx.shape[0]/3, good_idx.shape[0]/3+1))
+    scaleplot = ROOT.TH1D("scale", "scale", good_idx.shape[0]/3, onp.linspace(0, good_idx.shape[0]/3, good_idx.shape[0]/3+1))
     scaleplot.GetYaxis().SetTitle('scale')
 
     scaleplot = array2hist(fitres[:good_idx.shape[0]/3], scaleplot, np.sqrt(np.diag(invhess)[:good_idx.shape[0]/3]))
@@ -301,7 +298,7 @@ else:
     scale = res.x[:sep]
     scale_good = scale[scale_idx]
     scale_new = np.zeros_like(scale)
-    scale_new[scale_idx] = scale_good
+    scale_new = jax.ops.index_update(scale_new, scale_idx, scale_good)
     scale_4d = np.reshape(scale_new,(nEtaBins,nEtaBins,nPtBins,nPtBins))
 
     bin1D = 1
