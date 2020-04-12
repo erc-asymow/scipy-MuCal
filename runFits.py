@@ -130,7 +130,7 @@ else:
     x = defineState(nEtaBins,nPtBins, dataset)
 
 
-print "minimising"
+print("minimising")
 
 xtol = np.finfo('float64').eps
 #btol = 1.e-8
@@ -195,7 +195,7 @@ res = minimize(fgradnll, x,\
     method = 'trust-constr',jac = True, hess=SR1(),constraints=constraints,\
     options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
 
-print res
+print(res)
 
 
 fitres = res.x[good_idx]
@@ -217,8 +217,8 @@ invhess = np.linalg.inv(hessfinal)
 
 edm = 0.5*np.matmul(np.matmul(gradfinal.T,invhess),gradfinal)
 
-print fitres, "+/-", np.sqrt(np.diag(invhess))
-print edm, "edm"
+print(fitres, "+/-", np.sqrt(np.diag(invhess)))
+print(edm, "edm")
 
 diag = np.diag(np.sqrt(np.diag(invhess)))
 diag = np.linalg.inv(diag)
@@ -240,9 +240,9 @@ if runCalibration:
     e = res.x[nEtaBins:2*nEtaBins]
     M = res.x[2*nEtaBins:3*nEtaBins]
 
-    hA = ROOT.TH1D("A", "A", nEtaBins, etas)
-    he = ROOT.TH1D("e", "e", nEtaBins, etas)
-    hM = ROOT.TH1D("M", "M", nEtaBins, etas)
+    hA = ROOT.TH1D("A", "A", nEtaBins, onp.array(etas.tolist()))
+    he = ROOT.TH1D("e", "e", nEtaBins, onp.array(etas.tolist()))
+    hM = ROOT.TH1D("M", "M", nEtaBins, onp.array(etas.tolist()))
 
     hA = array2hist(A[:,0], hA, np.sqrt(np.diag(invhess)[:nEtaBins]))
     he = array2hist(e, he, np.sqrt(np.diag(invhess)[nEtaBins:2*nEtaBins]))

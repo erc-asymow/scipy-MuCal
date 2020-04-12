@@ -7,7 +7,9 @@ import argparse
 import itertools
 from scipy.stats import binned_statistic_dd
 
-ROOT.gSystem.Load('bin/libKalman.so')
+ROOT.gROOT.ProcessLine(".L src/module.cpp+")
+ROOT.gROOT.ProcessLine(".L src/applyCalibration.cpp+")
+
 
 parser = argparse.ArgumentParser('')
 parser.add_argument('-isJ', '--isJ', default=False, action='store_true', help='Use to run on JPsi, omit to run on Z')
@@ -63,7 +65,7 @@ ROOT.gInterpreter.ProcessLine('''
                 for (auto &&gen : myRndGens) gen.SetSeed(seed++);
                 '''.format(NSlots = NSlots))
 
-print cut
+print(cut)
 
 d = d.Filter(cut)\
     .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105)')\
@@ -76,7 +78,7 @@ d = d.Filter(cut)\
 f = ROOT.TFile.Open('%s/bFieldMap.root' % dataDir)
 bFieldMap = f.Get('bfieldMap')
 
-if runClosure: print 'taking corrections from', '{}/scale_{}_80X_13TeV.root'.format(dataDir, 'DATA' if isData else 'MC')
+if runClosure: print('taking corrections from', '{}/scale_{}_80X_13TeV.root'.format(dataDir, 'DATA' if isData else 'MC'))
 
 f2 = ROOT.TFile.Open('{}/scale_{}_80X_13TeV.root'.format(dataDir, 'DATA' if isData else 'MC'))
 A = f2.Get('magnetic')
@@ -126,7 +128,7 @@ pkg['edges'] = edges
 pkg['binCenters1'] = ret1.statistic
 pkg['binCenters2'] = ret2.statistic
 
-filehandler = open(pklfile, 'w')
+filehandler = open(pklfile, 'wb')
 pickle.dump(pkg, filehandler)
 
 if not isData:
@@ -137,9 +139,9 @@ if not isData:
     histoGen, edges = np.histogramdd(datasetGen.T, bins = [etas,etas,mass,pts,pts])
 
     if not isJ:
-        filehandler = open('calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'w')
+        filehandler = open('calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'wb')
     else:
-        filehandler = open('calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'w')
+        filehandler = open('calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'wb')
     pickle.dump(histoGen, filehandler)
 
 

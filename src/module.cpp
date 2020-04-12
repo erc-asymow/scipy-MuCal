@@ -1,4 +1,4 @@
-#include "interface/module.hpp"
+#include "../interface/module.hpp"
 
 
 std::vector<ROOT::RDF::RResultPtr<TH1D>> Module::getTH1(){ 
