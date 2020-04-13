@@ -1,5 +1,5 @@
 import jax.numpy as np
-from jax import grad, hessian, jacobian, config
+from jax import grad, hessian, jacobian, config, random
 from jax.scipy.special import erf
 config.update('jax_enable_x64', True)
 
@@ -42,10 +42,11 @@ def defineStatebkg(nEtaBins,nPtBins,dataset):
     return x.astype('float64')
 
 def defineStatePars(nEtaBins,nPtBins,dataset, isJ):
+    seed = 260292
 
-    A = np.ones((nEtaBins)) #+ np.random.normal(0, 0.0005, (nEtaBins))
-    e = np.zeros((nEtaBins)) #+ np.random.normal(0, 0.005, (nEtaBins))
-    M = np.zeros((nEtaBins)) #+ np.random.normal(0, 0.000005, (nEtaBins))
+    A = np.ones((nEtaBins)) #+ random.multivariate_normal(random.PRNGKey(seed),np.zeros((nEtaBins)), 0.0000005*np.eye((nEtaBins)))
+    e = np.zeros((nEtaBins)) #+ random.multivariate_normal(random.PRNGKey(seed),np.zeros((nEtaBins)), 0.000005*np.eye((nEtaBins)))
+    M = np.zeros((nEtaBins)) #+ random.multivariate_normal(random.PRNGKey(seed),np.zeros((nEtaBins)), 0.00000000005*np.eye((nEtaBins)))
     sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-3.9) 
     nsig = np.log(np.where(np.sum(dataset,axis=2)>0,np.sum(dataset,axis=2),2))
 
@@ -54,6 +55,7 @@ def defineStatePars(nEtaBins,nPtBins,dataset, isJ):
     else:
         x = np.concatenate((A.flatten(), M.flatten(), sigma.flatten(), nsig.flatten()),axis=0)
 
+    print x[:3*nEtaBins]
     print x.shape, 'x.shape'
                 
     return x.astype('float64')
@@ -89,7 +91,7 @@ def kernelpdf(scale, sigma, dataset, datasetGen, isJ):
 
     #take tensor product between mass and genMass dimensions and sum over gen masses
     #divide each bin by the sum of gen events in that bin
-    den = np.where(np.sum(datasetGen,axis=2)>1000.,np.sum(datasetGen,axis=2),-1)[:,:,np.newaxis,:,:]
+    den = np.where(np.sum(datasetGen,axis=2)>4000.,np.sum(datasetGen,axis=2),-1)[:,:,np.newaxis,:,:]
 
     I = np.sum(arg*datasetGen[:,:,np.newaxis,:,:,:],axis=3)/den
 
@@ -100,7 +102,7 @@ def kernelpdf(scale, sigma, dataset, datasetGen, isJ):
 
     #take tensor product between mass and genMass dimensions and sum over gen masses
     #divide each bin by the sum of gen events in that bin
-    den2 = np.where(np.sum(datasetGen,axis=2)>1000.,np.sum(datasetGen,axis=2),1)[:,:,np.newaxis,:,:]
+    den2 = np.where(np.sum(datasetGen,axis=2)>4000.,np.sum(datasetGen,axis=2),1)[:,:,np.newaxis,:,:]
 
     pdf = np.sum(gaus*datasetGen[:,:,np.newaxis,:,:,:],axis=3)/den2/np.where(I>0.,I,-1)
 
@@ -133,8 +135,6 @@ def kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ, etas, binCenters1, b
     c1 = binCenters1
     c2 = binCenters2
 
-    #print c1, c2
-
     A1 = A[:,np.newaxis,np.newaxis,np.newaxis]
     e1 = e[:,np.newaxis,np.newaxis,np.newaxis]
     M1 = M[:,np.newaxis,np.newaxis,np.newaxis]
@@ -166,7 +166,7 @@ def kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ, etas, binCenters1, b
 
     #take tensor product between mass and genMass dimensions and sum over gen masses
     #divide each bin by the sum of gen events in that bin
-    den = np.where(np.sum(datasetGen,axis=2)>1000.,np.sum(datasetGen,axis=2),-1)[:,:,np.newaxis,:,:]
+    den = np.where(np.sum(datasetGen,axis=2)>4000.,np.sum(datasetGen,axis=2),-1)[:,:,np.newaxis,:,:]
 
     I = np.sum(arg*datasetGen[:,:,np.newaxis,:,:,:],axis=3)/den
 
@@ -177,7 +177,7 @@ def kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ, etas, binCenters1, b
 
     #take tensor product between mass and genMass dimensions and sum over gen masses
     #divide each bin by the sum of gen events in that bin
-    den2 = np.where(np.sum(datasetGen,axis=2)>1000.,np.sum(datasetGen,axis=2),1)[:,:,np.newaxis,:,:]
+    den2 = np.where(np.sum(datasetGen,axis=2)>4000.,np.sum(datasetGen,axis=2),1)[:,:,np.newaxis,:,:]
 
     pdf = np.sum(gaus*datasetGen[:,:,np.newaxis,:,:,:],axis=3)/den2/np.where(I>0.,I,-1)
 
@@ -265,7 +265,7 @@ def nllPars(x,nEtaBins,nPtBins,dataset,datasetGen, isJ, etas, binCenters1, binCe
     sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdfPars(A, e, M, sigma, dataset, datasetGen, isJ, etas, binCenters1, binCenters2)
 
     nll = nsig - np.sum(dataset*np.log(np.where(sigpdf>0.,sigpdf,1.)), axis =2)
-        
+
     return np.sum(nll)
 
 def plots(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
@@ -314,12 +314,14 @@ def plots(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
                     color='black', fontsize=12)
                     
                     ax1.plot(mass, pdf[ieta1,ieta2,:,ipt1,ipt2])
-                    plt.xlim(minR, maxR)
-        
+                    ax1.set_xlim([minR, maxR])
+
                     ax2.errorbar(mass,dataset[ieta1,ieta2,:,ipt1,ipt2]/pdf[ieta1,ieta2,:,ipt1,ipt2],yerr=np.sqrt(dataset[ieta1,ieta2,:,ipt1,ipt2])/pdf[ieta1,ieta2,:,ipt1,ipt2], fmt='.')
                     ax2.set_xlabel('dimuon mass')
                     ax2.set_ylabel('ratio data/pdf')
-                    plt.xlim(minR, maxR)
+                    
+                    ax2.set_xlim([minR, maxR])
+                    ax2.set_ylim([0., 2.5])
 
                     plt.savefig('PLOTS{}MC/plot_{}{}{}{}.pdf'.format('J' if isJ else 'Z',ieta1,ieta2,ipt1,ipt2))
                     plt.close(fig)
@@ -388,7 +390,7 @@ def plotsbkg(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
                     plt.savefig('PLOTS{}DATA/plot_{}{}{}{}.pdf'.format('J' if isJ else 'Z',ieta1,ieta2,ipt1,ipt2))
 
 
-def plotsPars(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
+def plotsPars(x,nEtaBins,nPtBins,dataset,datasetGen,isJ,etas, binCenters1, binCenters2):
 
     if isJ:
         maxR = 3.3
@@ -399,7 +401,7 @@ def plotsPars(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
 
     sep = np.power(nEtaBins,2)*np.power(nPtBins,2)
 
-    A = x[:nEtaBins,np.newaxis]
+    A = x[:nEtaBins]
 
     if isJ:
         e = x[nEtaBins:2*nEtaBins]
@@ -414,7 +416,7 @@ def plotsPars(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
 
     n_true = np.sum(dataset,axis=2)    
     
-    sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdfPars(A, e, M, sigma, dataset, datasetGen,isJ)
+    sigpdf = nsig[:,:,np.newaxis,:,:]*kernelpdfPars(A, e, M, sigma, dataset, datasetGen,isJ,etas, binCenters1, binCenters2)
 
     pdf = sigpdf
 
@@ -427,8 +429,8 @@ def plotsPars(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
 
                     if not pdf[ieta1,ieta2,:,ipt1,ipt2].any()>0.: continue
 
-                    A1_bin = A[ieta1,0]
-                    A2_bin = A[ieta2,0]
+                    A1_bin = A[ieta1]
+                    A2_bin = A[ieta2]
                     e1_bin = e[ieta1]
                     e2_bin = e[ieta2]
                     M1_bin = M[ieta1]

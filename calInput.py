@@ -29,7 +29,7 @@ RDF = ROOT.ROOT.RDataFrame
 restrictToBarrel = True
 
 if isJ:
-    cut = 'pt1>3. && pt2>3.'# && mass>2.9 && mass<3.3'
+    cut = 'pt1>4.3 && pt2>4.3 && pt1<25. && pt2<25.'# && mass>2.9 && mass<3.3'
     
 else:
     cut = 'pt1>20.0 && pt2>20.0 && mass>80. && mass<100.'
@@ -98,13 +98,15 @@ dataset = np.array([data['eta1'],data['eta2'],data[mass],data['pt1'],data['pt2']
 dataset2 = np.array([data['eta1'],data['eta2'],data['pt1'],data['pt2']])
 
 etas = np.arange(-0.8, 1.2, 0.4)
-pts = np.quantile(dataset[3],[0.25,0.5,0.75,1.])
+pts = np.quantile(dataset[3],[0.,0.2,0.4,0.6,0.8,1.])
 
 ret1 = binned_statistic_dd(dataset2.T, 1./dataset[3], bins = [etas,etas,pts,pts], statistic='mean')
 ret2 = binned_statistic_dd(dataset2.T, 1./dataset[4], bins = [etas,etas,pts,pts], statistic='mean')
 
 if isJ: mass = np.arange(2.9,3.304,0.004)
 else: mass = np.arange(75.,115.04,0.4)
+
+print pts
 
 phis = np.array((-np.pi,np.pi))
 

@@ -108,7 +108,7 @@ args = parser.parse_args()
 isJ = args.isJ
 runCalibration = args.runCalibration
 
-file = open("calInput{}MC_4etaBins_3ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+file = open("calInput{}MC_4etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 pkg = pickle.load(file)
 
 dataset = pkg['dataset']
@@ -117,12 +117,13 @@ pts = pkg['edges'][3]
 binCenters1 = pkg['binCenters1']
 binCenters2 = pkg['binCenters2']
 
-
-filegen = open("calInput{}MCgen_4etaBins_3ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+filegen = open("calInput{}MCgen_4etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 datasetgen = pickle.load(filegen)
 
 nEtaBins = len(etas)-1
 nPtBins = len(pts)-1
+
+print pts
 
 if runCalibration:
     x = defineStatePars(nEtaBins,nPtBins, dataset, isJ)
@@ -140,9 +141,9 @@ maxiter = 100000
 
 sep = nEtaBins*nEtaBins*nPtBins*nPtBins
 
-idx = np.where((np.sum(datasetgen,axis=2)<=2000.).flatten())[0]
+idx = np.where((np.sum(datasetgen,axis=2)<=4000.).flatten())[0]
 
-good_idx = np.where((np.sum(datasetgen,axis=2)>2000.).flatten())[0]
+good_idx = np.where((np.sum(datasetgen,axis=2)>4000.).flatten())[0]
 
 if runCalibration:
 
@@ -151,7 +152,6 @@ if runCalibration:
     ub_scale = np.concatenate((1.001*np.ones(nEtaBins),0.01*np.ones(nEtaBins), 1e-5*np.ones(nEtaBins)),axis=0)
     pars_idx = np.linspace(0, nEtaBins-1,nEtaBins,dtype=np.int16)
     good_idx = np.concatenate((pars_idx,nEtaBins+pars_idx,2*nEtaBins+pars_idx,3*nEtaBins+good_idx, 3*nEtaBins+good_idx+sep), axis=0)
-
 else:   
     bad_idx = np.concatenate((idx, idx+sep,idx+2*sep), axis=0)
     lb_scale = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),0.).flatten()
@@ -234,7 +234,7 @@ plt.colorbar()
 plt.savefig("corrMC.pdf")
 
 if runCalibration:
-    #plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,isJ,etas, binCenters1, binCenters2)
+    plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,isJ,etas, binCenters1, binCenters2)
 
     A = res.x[:nEtaBins, np.newaxis]
     e = res.x[nEtaBins:2*nEtaBins]
@@ -256,7 +256,7 @@ if runCalibration:
     he.GetXaxis().SetTitle('#eta')
     hM.GetXaxis().SetTitle('#eta')
 
-    scale_idx = np.where((np.sum(datasetgen,axis=2)>2000.).flatten())[0]
+    scale_idx = np.where((np.sum(datasetgen,axis=2)>4000.).flatten())[0]
 
     AeM = res.x[:3*nEtaBins]
     scale = scaleFromPars(AeM, etas, binCenters1, binCenters2)
@@ -312,7 +312,7 @@ else:
 
     scaleplot = array2hist(fitres[:good_idx.shape[0]/3], scaleplot, np.sqrt(np.diag(invhess)[:good_idx.shape[0]/3]))
 
-    scale_idx = np.where((np.sum(datasetgen,axis=2)>2000.).flatten())[0]
+    scale_idx = np.where((np.sum(datasetgen,axis=2)>4000.).flatten())[0]
 
     scale = res.x[:sep]
     scale_good = scale[scale_idx]
