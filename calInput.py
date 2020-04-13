@@ -97,20 +97,38 @@ if not isData and smearedMC:
 data = d.AsNumpy(columns=[mass,'eta1', 'pt1', 'eta2', 'pt2'])
 
 dataset = np.array([data['eta1'],data['eta2'],data[mass],data['pt1'],data['pt2']])
-dataset2 = np.array([data['eta1'],data['eta2'],data['pt1'],data['pt2']])
+#dataset2 = np.array([data['eta1'],data['eta2'],data['pt1'],data['pt2']])
 
 etas = np.arange(-0.8, 1.2, 0.4)
 pts = np.quantile(dataset[3],[0.,0.2,0.4,0.6,0.8,1.])
 
-ret1 = binned_statistic_dd(dataset2.T, 1./dataset[3], bins = [etas,etas,pts,pts], statistic='mean')
-ret2 = binned_statistic_dd(dataset2.T, 1./dataset[4], bins = [etas,etas,pts,pts], statistic='mean')
+#ret1 = binned_statistic_dd(dataset2.T, 1./dataset[3], bins = [etas,etas,pts,pts], statistic='mean')
+#ret2 = binned_statistic_dd(dataset2.T, 1./dataset[4], bins = [etas,etas,pts,pts], statistic='mean')
 
 if isJ: mass = np.arange(2.9,3.304,0.004)
 else: mass = np.arange(75.,115.04,0.4)
 
-print pts
+print(pts)
 
 phis = np.array((-np.pi,np.pi))
+
+
+#apply mass cuts and remove mass dimension
+dataset2 = dataset[:-1].T[np.where(np.logical_and(dataset[2]>=mass[0], dataset[2]<mass[-1]))]
+
+#compute mean pt in each bin
+histoden,_ = np.histogramdd(dataset2, bins = [etas,etas,pts,pts])
+histoden = np.where(histoden>0., histoden, 1.)
+
+histopt1,_ = np.histogramdd(dataset2, bins = [etas,etas,pts,pts], weights=1./dataset2[:,2])
+histopt1 = np.where(histopt1>0., histopt1, 1.)
+ret1 = histopt1/histoden
+
+histopt2,_ = np.histogramdd(dataset2, bins = [etas,etas,pts,pts], weights=1./dataset2[:,3])
+histopt2 = np.where(histopt2>0., histopt2, 1.)
+ret2 = histopt2/histoden
+
+
 
 histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,mass,pts,pts])
 
@@ -127,8 +145,8 @@ pklfile+='.pkl'
 pkg = {}
 pkg['dataset'] = histo
 pkg['edges'] = edges
-pkg['binCenters1'] = ret1.statistic
-pkg['binCenters2'] = ret2.statistic
+pkg['binCenters1'] = ret1
+pkg['binCenters2'] = ret2
 
 filehandler = open(pklfile, 'wb')
 pickle.dump(pkg, filehandler)
