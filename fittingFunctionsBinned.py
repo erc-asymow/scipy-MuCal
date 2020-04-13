@@ -462,7 +462,7 @@ def plotsPars(x,nEtaBins,nPtBins,dataset,datasetGen,isJ,etas, binCenters1, binCe
                     ax2.set_ylim([0., 2.5])
 
 
-                    plt.savefig('PLOTS{}MCCorr/plot_{}{}{}{}.pdf'.format('J' if isJ else 'Z',ieta1,ieta2,ipt1,ipt2))
+                    plt.savefig('PLOTS{}MCCorr/plot_{}{}{}{}.png'.format('J' if isJ else 'Z',ieta1,ieta2,ipt1,ipt2))
                     plt.close(fig)
 
 
