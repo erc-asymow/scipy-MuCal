@@ -11,7 +11,7 @@
 #include "TMath.h"
 #include "TLorentzVector.h"
 #include "Math/Vector4D.h"
-#include "interface/module.hpp"
+#include "module.hpp"
 
 using namespace ROOT::VecOps;
 using RNode = ROOT::RDF::RNode;
