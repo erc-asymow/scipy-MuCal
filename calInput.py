@@ -56,96 +56,154 @@ else:
 if isData: inputFile = inputFileD
 else: inputFile = inputFileMC
 
-d = RDF('tree',inputFile)
+def makeData(inputFile, genMass=False, smearedMass=False):
 
-NSlots = d.GetNSlots()
-ROOT.gInterpreter.ProcessLine('''
-                std::vector<TRandom3> myRndGens({NSlots});
-                int seed = 1; // not 0 because seed 0 has a special meaning
-                for (auto &&gen : myRndGens) gen.SetSeed(seed++);
-                '''.format(NSlots = NSlots))
+    d = RDF('tree',inputFile)
 
-print(cut)
+    if smearedMass:
+        NSlots = d.GetNSlots()
+        ROOT.gInterpreter.ProcessLine('''
+                        std::vector<TRandom3> myRndGens({NSlots});
+                        int seed = 1; // not 0 because seed 0 has a special meaning
+                        for (auto &&gen : myRndGens) gen.SetSeed(seed++);
+                        '''.format(NSlots = NSlots))
 
-d = d.Filter(cut)\
-    .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105)')\
-    .Define('v2', 'ROOT::Math::PtEtaPhiMVector(pt2,eta2,phi2,0.105)')\
-    .Define('rapidity', 'float((v1+v2).Rapidity())').Filter('fabs(rapidity)<2.4')\
-    .Define('v1sm', 'ROOT::Math::PtEtaPhiMVector(mcpt1+myRndGens[rdfslot_].Gaus(0., cErr1*pt1),eta1,phi1,0.105)')\
-    .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*pt2),eta2,phi2,0.105)')\
-    .Define('smearedgenMass', '(v1sm+v2sm).M()')
+    print(cut)
 
-f = ROOT.TFile.Open('%s/bFieldMap.root' % dataDir)
-bFieldMap = f.Get('bfieldMap')
+    d = d.Filter(cut)\
+        .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105)')\
+        .Define('v2', 'ROOT::Math::PtEtaPhiMVector(pt2,eta2,phi2,0.105)')
+    
+    if smearedMass:
+        d = d.Define('v1sm', 'ROOT::Math::PtEtaPhiMVector(mcpt1+myRndGens[rdfslot_].Gaus(0., cErr1*mcpt1),eta1,phi1,0.105)')\
+            .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*mcpt2),eta2,phi2,0.105)')\
+            .Define('smearedgenMass', '(v1sm+v2sm).M()')
 
-if runClosure: print('taking corrections from', '{}/scale_{}_80X_13TeV.root'.format(dataDir, 'DATA' if isData else 'MC'))
+    f = ROOT.TFile.Open('%s/bFieldMap.root' % dataDir)
+    bFieldMap = f.Get('bfieldMap')
 
-f2 = ROOT.TFile.Open('{}/scale_{}_80X_13TeV.root'.format(dataDir, 'DATA' if isData else 'MC'))
-A = f2.Get('magnetic')
-e = f2.Get('e')
-M = f2.Get('B')
+    if runClosure: print('taking corrections from', '{}/scale_{}_80X_13TeV.root'.format(dataDir, 'DATA' if isData else 'MC'))
 
-module = ROOT.applyCalibration(bFieldMap, A, e, M, isData, runClosure)
+    f2 = ROOT.TFile.Open('{}/scale_{}_80X_13TeV.root'.format(dataDir, 'DATA' if isData else 'MC'))
+    A = f2.Get('magnetic')
+    e = f2.Get('e')
+    M = f2.Get('B')
 
-d = module.run(CastToRNode(d))
+    module = ROOT.applyCalibration(bFieldMap, A, e, M, isData, runClosure)
 
-mass = 'corrMass'
+    d = module.run(CastToRNode(d))
+    
+    mass = 'corrMass'
 
-if not isData and smearedMC:
-    mass = 'smearedgenMass'
+    if smearedMass:
+        mass = 'smearedgenMass'
+    
+    cols=[mass,'eta1', 'pt1', 'phi1', 'eta2', 'pt2', 'phi2']
+    
+    if genMass:
+        cols.append('genMass')
+    
+    data = d.AsNumpy(columns=cols)
 
-data = d.AsNumpy(columns=[mass,'eta1', 'pt1', 'eta2', 'pt2'])
+    return data
 
-dataset = np.array([data['eta1'],data['eta2'],data[mass],data['pt1'],data['pt2']])
-dataset2 = np.array([data['eta1'],data['eta2'],data['pt1'],data['pt2']])
+
+def makeGenDataset(data, etas, pts, masses):
+
+    datasetGen = np.array([data['eta1'],data['eta2'],data['pt1'],data['pt2'],data['genMass']])
+    histoGen, edges = np.histogramdd(datasetGen.T, bins = [etas,etas,pts,pts,masses])
+
+    return histoGen
+
+
+def makepkg(data, etas, pts, masses, good_idx, smearedMass=False):
+
+    mass = 'corrMass'
+
+    if smearedMass:
+        mass = 'smearedgenMass'
+
+    dataset = np.array([data['eta1'],data['eta2'],data['pt1'],data['pt2'],data[mass]])
+    
+    histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,masses])
+    
+    #compute mean pt in each bin (integrating over mass)
+    massesfull = np.array([masses[0],masses[-1]])
+    histoden,_ = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,massesfull])
+    
+    histopt1,_ = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,massesfull], weights=1./dataset[2])
+    ret1 = histopt1/histoden
+    
+    histopt2,_ = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,massesfull], weights=1./dataset[3])
+    ret2 = histopt2/histoden
+    
+    #remove spurious mass dimension
+    ret1 = np.squeeze(ret1, axis=-1)
+    ret2 = np.squeeze(ret2, axis=-1)
+
+    pkg = {}
+    pkg['dataset'] = histo[good_idx]
+    pkg['edges'] = edges
+    pkg['binCenters1'] = ret1[good_idx]
+    pkg['binCenters2'] = ret2[good_idx]
+    pkg['good_idx'] = good_idx
+    
+    return pkg
+
+
+mcrecomass = "mass"
+if smearedMC:
+    mcrecomass = "smearedgenMass"
+
+dataD = makeData(inputFileD)
+dataMC = makeData(inputFileMC, genMass=True, smearedMass=smearedMC)
 
 etas = np.arange(-0.8, 1.2, 0.4)
-pts = np.quantile(dataset[3],[0.,0.2,0.4,0.6,0.8,1.])
-
-ret1 = binned_statistic_dd(dataset2.T, 1./dataset[3], bins = [etas,etas,pts,pts], statistic='mean')
-ret2 = binned_statistic_dd(dataset2.T, 1./dataset[4], bins = [etas,etas,pts,pts], statistic='mean')
-
-if isJ: mass = np.arange(2.9,3.304,0.004)
-else: mass = np.arange(75.,115.04,0.4)
-
-print pts
-
-phis = np.array((-np.pi,np.pi))
-
-histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,mass,pts,pts])
-
-pklfile = 'calInput{}'.format('J' if isJ else 'Z')
-if isData: pklfile+='DATA'
+if isJ:
+    masses = np.arange(2.9,3.304,0.004)
 else:
-    if smearedMC:
-        pklfile+='MCsmear'
-    else:
-        pklfile+='MC'
-pklfile+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(pts)-1)
-pklfile+='.pkl'
+    masses = np.arange(75.,115.04,0.4)
+nPtBins = 5
+ptquantiles = np.linspace(0.,1.,nPtBins+1)
+print(ptquantiles)
+pts = np.quantile(np.concatenate((dataMC['pt1'],dataMC['pt2']),axis=0),ptquantiles)
+print(pts)
 
-pkg = {}
-pkg['dataset'] = histo
-pkg['edges'] = edges
-pkg['binCenters1'] = ret1.statistic
-pkg['binCenters2'] = ret2.statistic
+histoGen = makeGenDataset(dataMC,etas,pts,masses)
 
-filehandler = open(pklfile, 'wb')
-pickle.dump(pkg, filehandler)
+good_idx = np.nonzero(np.sum(histoGen,axis=-1)>4000.)
 
-if not isData:
+histoGen = histoGen[good_idx]
 
-    dataGen = d.AsNumpy(columns=['genMass','eta1', 'pt1', 'phi1', 'eta2', 'pt2', 'phi2'])
+pkgD = makepkg(dataMC, etas, pts, masses, good_idx)
+pkgMC = makepkg(dataMC, etas, pts, masses, good_idx, smearedMass=smearedMC)
 
-    datasetGen = np.array([dataGen['eta1'],dataGen['eta2'],dataGen['genMass'],dataGen['pt1'],dataGen['pt2']])
-    histoGen, edges = np.histogramdd(datasetGen.T, bins = [etas,etas,mass,pts,pts])
-
-    if not isJ:
-        filehandler = open('calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'wb')
-    else:
-        filehandler = open('calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'wb')
+if not isJ:
+    pklfileGen = 'calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1)
+    filehandler = open('calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'wb')
+else:
+    pklfileGen = 'calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1)
+    filehandler = open('calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'wb')
+    
+with open(pklfileGen, 'wb') as filehandler:
     pickle.dump(histoGen, filehandler)
 
+pklfileBase = 'calInput{}'.format('J' if isJ else 'Z')
+pklfileData = pklfileBase + 'DATA'
 
+if smearedMC:
+    pklfileMC = pklfileBase + 'MCsmear'
+else:
+    pklfileMC = pklfileBase + 'MC'
 
+pklfileData+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(pts)-1)
+pklfileData+='.pkl'
 
+pklfileMC+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(pts)-1)
+pklfileMC+='.pkl'
+
+with open(pklfileMC, 'wb') as filehandler:
+    pickle.dump(pkgMC, filehandler)
+    
+with open(pklfileData, 'wb') as filehandler:
+    pickle.dump(pkgD, filehandler)
