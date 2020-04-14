@@ -158,13 +158,19 @@ if smearedMC:
 dataD = makeData(inputFileD)
 dataMC = makeData(inputFileMC, genMass=True, smearedMass=smearedMC)
 
-etas = np.arange(-0.8, 1.2, 0.4)
-if isJ:
-    masses = np.arange(2.9,3.304,0.004)
-else:
-    masses = np.arange(75.,115.04,0.4)
+nEtaBins = 4
 nPtBins = 5
-ptquantiles = np.linspace(0.,1.,nPtBins+1)
+nMassBins = 100
+
+etas = np.linspace(-0.8, 0.8, nEtaBins+1, dtype='float64')
+
+#etas = np.arange(-0.8, 1., 0.2)
+if isJ:
+    masses = np.linspace(2.9, 3.3, nMassBins+1, dtype='float64')
+else:
+    masses = np.linspace(75., 115., nMassBins+1, dtype='float64')
+
+ptquantiles = np.linspace(0.,1.,nPtBins+1, dtype='float64')
 print(ptquantiles)
 pts = np.quantile(np.concatenate((dataMC['pt1'],dataMC['pt2']),axis=0),ptquantiles)
 print(pts)
