@@ -114,7 +114,8 @@ pkg = pickle.load(file)
 
 dataset = pkg['dataset']
 etas = pkg['edges'][0]
-pts = pkg['edges'][3]
+pts = pkg['edges'][2]
+masses = pkg['edges'][-1]
 binCenters1 = pkg['binCenters1']
 binCenters2 = pkg['binCenters2']
 good_idx = pkg['good_idx']
@@ -140,7 +141,7 @@ xtol = np.finfo('float64').eps
 #btol = 1.e-8
 btol = 0.1
 maxiter = 100000
-#maxiter = 87
+#maxiter = 50
 
 if runCalibration:
 
@@ -164,11 +165,11 @@ constraints = LinearConstraint( A=np.eye(x.shape[0]), lb=lb, ub=ub,keep_feasible
 if runCalibration:
     fnll = nllPars
     #convert fnll to single parameter function fnllx(x)
-    fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, isJ=isJ, etas=etas, binCenters1=binCenters1, binCenters2=binCenters2, good_idx=good_idx)
+    fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, isJ=isJ, etas=etas, masses=masses, binCenters1=binCenters1, binCenters2=binCenters2, good_idx=good_idx)
 else:
     fnll = nll
     #convert fnll to single parameter function fnllx(x)
-    fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, isJ=isJ)
+    fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, masses=masses)
 
 
 fgradnll = jax.jit(jax.value_and_grad(fnllx))
@@ -187,6 +188,9 @@ def fgradnlldebug(x):
 
 hessnll = hessianlowmem(fnllx)
 
+#FIXME
+#this seems to actually work properly on gpu, but tries to allocate too much memory on cpu for some reason
+#hessnll = jax.jit(hessian(fnllx))
 
 res = minimize(fgradnll, x,\
     method = 'trust-constr',jac = True, hess=SR1(),constraints=constraints,\
@@ -233,7 +237,7 @@ plt.colorbar()
 plt.savefig("corrMC.pdf")
 
 if runCalibration:
-    plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,isJ,etas, binCenters1, binCenters2, good_idx)
+    plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ,etas, binCenters1, binCenters2, good_idx)
 
     A = res.x[:nEtaBins, np.newaxis]
     e = res.x[nEtaBins:2*nEtaBins]
@@ -265,6 +269,7 @@ if runCalibration:
     invhessAeM = invhess[:3*nEtaBins,:3*nEtaBins]
     scale_invhess = np.matmul(np.matmul(jac,invhessAeM),jac.T)
     scale_err = np.sqrt(np.diag(scale_invhess))
+    print("computed scales error, now plotting...")
     
     #have to use original numpy to construct the bin edges because for some reason this doesn't work with the arrays returned by jax
     scaleplot = ROOT.TH1D("scale", "scale", nBins, onp.linspace(0, nBins, nBins+1))
@@ -289,7 +294,8 @@ if runCalibration:
     scaleplot.Write()
 
 else:
-    plots(res.x,nEtaBins,nPtBins,dataset,datasetgen,isJ)
+    print("plotting...")
+    plots(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ)
 
     f = ROOT.TFile("scaleMC.root", 'recreate')
     f.cd()
