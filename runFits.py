@@ -68,7 +68,7 @@ def hessianopt(fun):
         return vhvp(basis).reshape(x.shape + x.shape)
     return functools.partial(_hessianopt, f=fun)
 
-def scaleFromPars(AeM, etas, binCenters1, binCenters2):
+def scaleFromPars(AeM, etas, binCenters1, binCenters2, good_idx):
 
     A = AeM[:nEtaBins]
     e = AeM[nEtaBins:2*nEtaBins]
@@ -76,24 +76,25 @@ def scaleFromPars(AeM, etas, binCenters1, binCenters2):
 
     etasC = (etas[:-1] + etas[1:]) / 2.
 
-    s = np.sin(2*np.arctan(np.exp(-etasC)))
+    sEta = np.sin(2*np.arctan(np.exp(-etasC)))
+    s1 = sEta[good_idx[0]]
+    s2 = sEta[good_idx[1]]
     
     c1 = binCenters1
     c2 = binCenters2
 
-    #print c1, c2
+    # select the model parameters from the eta bins corresponding
+    # to each kinematic bin
+    A1 = A[good_idx[0]]
+    e1 = e[good_idx[0]]
+    M1 = M[good_idx[0]]
 
-    A1 = A[:,np.newaxis,np.newaxis,np.newaxis]
-    e1 = e[:,np.newaxis,np.newaxis,np.newaxis]
-    M1 = M[:,np.newaxis,np.newaxis,np.newaxis]
+    A2 = A[good_idx[1]]
+    e2 = e[good_idx[1]]
+    M2 = M[good_idx[1]]
 
-    A2 = A[np.newaxis,:,np.newaxis,np.newaxis]
-    e2 = e[np.newaxis,:,np.newaxis,np.newaxis]
-    M2 = M[np.newaxis,:,np.newaxis,np.newaxis]
-
-    term1 = A1-s[:,np.newaxis,np.newaxis,np.newaxis]*e1*c1+M1/c1
-    term2 = A2-s[np.newaxis,:,np.newaxis,np.newaxis]*e2*c2-M2/c2
-    #combos = np.swapaxes(np.tensordot(term1,term2, axes=0),1,2)
+    term1 = A1-s1*e1*c1+M1/c1
+    term2 = A2-s2*e2*c2-M2/c2
     combos = term1*term2
     scale = np.sqrt(combos)
 
@@ -116,14 +117,16 @@ etas = pkg['edges'][0]
 pts = pkg['edges'][3]
 binCenters1 = pkg['binCenters1']
 binCenters2 = pkg['binCenters2']
+good_idx = pkg['good_idx']
 
 filegen = open("calInput{}MCgen_4etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 datasetgen = pickle.load(filegen)
 
 nEtaBins = len(etas)-1
 nPtBins = len(pts)-1
+nBins = dataset.shape[0]
 
-print pts
+print(pts)
 
 if runCalibration:
     x = defineStatePars(nEtaBins,nPtBins, dataset, isJ)
@@ -137,59 +140,53 @@ xtol = np.finfo('float64').eps
 #btol = 1.e-8
 btol = 0.1
 maxiter = 100000
-#maxiter = 2
-
-sep = nEtaBins*nEtaBins*nPtBins*nPtBins
-
-idx = np.where((np.sum(datasetgen,axis=2)<=4000.).flatten())[0]
-
-good_idx = np.where((np.sum(datasetgen,axis=2)>4000.).flatten())[0]
+#maxiter = 87
 
 if runCalibration:
 
-    bad_idx = np.concatenate((idx, idx+sep), axis=0)
-    lb_scale = np.concatenate((0.009*np.ones(nEtaBins),-0.01*np.ones(nEtaBins), -1e-5*np.ones(nEtaBins)),axis=0)
-    ub_scale = np.concatenate((1.001*np.ones(nEtaBins),0.01*np.ones(nEtaBins), 1e-5*np.ones(nEtaBins)),axis=0)
-    pars_idx = np.linspace(0, nEtaBins-1,nEtaBins,dtype=np.int16)
-    good_idx = np.concatenate((pars_idx,nEtaBins+pars_idx,2*nEtaBins+pars_idx,3*nEtaBins+good_idx, 3*nEtaBins+good_idx+sep), axis=0)
+    lb_scale = np.concatenate((0.95*np.ones(nEtaBins),-0.05*np.ones(nEtaBins), -1e-2*np.ones(nEtaBins)),axis=0)
+    ub_scale = np.concatenate((1.05*np.ones(nEtaBins),0.05*np.ones(nEtaBins), 1e-2*np.ones(nEtaBins)),axis=0)
 else:   
-    bad_idx = np.concatenate((idx, idx+sep,idx+2*sep), axis=0)
-    lb_scale = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),0.).flatten()
-    ub_scale = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),2.).flatten()
-    good_idx = np.concatenate((good_idx, good_idx+sep,good_idx+2*sep), axis=0)
+    lb_scale = np.full((nBins),0.5)
+    ub_scale = np.full((nBins),2.)
 
-lb_sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-np.inf).flatten()
-lb_nsig = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),-np.inf).flatten()
+lb_sigma = np.full((nBins),-np.inf)
+lb_nsig = np.full((nBins),-np.inf)
 
-ub_sigma = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),np.inf).flatten()
-ub_nsig = np.full((nEtaBins,nEtaBins,nPtBins,nPtBins),np.inf).flatten()
+ub_sigma = np.full((nBins),np.inf)
+ub_nsig = np.full((nBins),np.inf)
 
 lb = np.concatenate((lb_scale,lb_sigma,lb_nsig),axis=0)
 ub = np.concatenate((ub_scale,ub_sigma,ub_nsig),axis=0)
-
-#bounds for fixed parameters must be equal to the starting values
-if runCalibration:
-    lb = jax.ops.index_update(lb, 3*nEtaBins+bad_idx, x[3*nEtaBins+bad_idx])
-    ub = jax.ops.index_update(ub, 3*nEtaBins+bad_idx, x[3*nEtaBins+bad_idx])
-else:
-    lb = jax.ops.index_update(lb, bad_idx, x[bad_idx])
-    ub = jax.ops.index_update(ub, bad_idx, x[bad_idx])
 
 constraints = LinearConstraint( A=np.eye(x.shape[0]), lb=lb, ub=ub,keep_feasible=True )
 
 if runCalibration:
     fnll = nllPars
     #convert fnll to single parameter function fnllx(x)
-    fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, isJ=isJ, etas=etas, binCenters1=binCenters1, binCenters2=binCenters2)
+    fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, isJ=isJ, etas=etas, binCenters1=binCenters1, binCenters2=binCenters2, good_idx=good_idx)
 else:
     fnll = nll
     #convert fnll to single parameter function fnllx(x)
     fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, isJ=isJ)
 
+
 fgradnll = jax.jit(jax.value_and_grad(fnllx))
-#fgradnll = jax.value_and_grad(fnllx)
+
+def fgradnlldebug(x):
+    f,grad = fgradnll(x)
+    if np.isnan(f) or np.any(np.isnan(grad)):
+        print("nan detected")
+        print(x)
+        print(f)
+        print(grad)
+        
+        fnllx(x)
+        
+    return f,grad
 
 hessnll = hessianlowmem(fnllx)
+
 
 res = minimize(fgradnll, x,\
     method = 'trust-constr',jac = True, hess=SR1(),constraints=constraints,\
@@ -198,18 +195,20 @@ res = minimize(fgradnll, x,\
 print(res)
 
 
-fitres = res.x[good_idx]
+fitres = res.x
 
 val,gradient = fgradnll(res.x)
-gradfinal = gradient[good_idx]
+gradfinal = gradient
+
+print(val)
+print(gradient)
 
 #print gradient, "gradient"
 
 hessian = hessnll(res.x)
 #hessian = np.eye(x.shape[0])
 
-hessmod = hessian[good_idx,:]
-hessfinal = hessmod[:,good_idx] 
+hessfinal = hessian
 
 #print np.linalg.eigvals(hessfinal), "eigenvalues"
 
@@ -234,7 +233,7 @@ plt.colorbar()
 plt.savefig("corrMC.pdf")
 
 if runCalibration:
-    plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,isJ,etas, binCenters1, binCenters2)
+    plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,isJ,etas, binCenters1, binCenters2, good_idx)
 
     A = res.x[:nEtaBins, np.newaxis]
     e = res.x[nEtaBins:2*nEtaBins]
@@ -256,39 +255,27 @@ if runCalibration:
     he.GetXaxis().SetTitle('#eta')
     hM.GetXaxis().SetTitle('#eta')
 
-    scale_idx = np.where((np.sum(datasetgen,axis=2)>4000.).flatten())[0]
-
     AeM = res.x[:3*nEtaBins]
-    scale = scaleFromPars(AeM, etas, binCenters1, binCenters2)
+    scale = scaleFromPars(AeM, etas, binCenters1, binCenters2, good_idx)
+    
+    print(scale.shape)
     
     jacobianscale = jax.jit(jax.jacfwd(scaleFromPars))
-    jac = jacobianscale(AeM,etas, binCenters1, binCenters2)
-    jac = jac[scale_idx,:]
+    jac = jacobianscale(AeM,etas, binCenters1, binCenters2, good_idx)
     invhessAeM = invhess[:3*nEtaBins,:3*nEtaBins]
     scale_invhess = np.matmul(np.matmul(jac,invhessAeM),jac.T)
     scale_err = np.sqrt(np.diag(scale_invhess))
     
     #have to use original numpy to construct the bin edges because for some reason this doesn't work with the arrays returned by jax
-    scaleplot = ROOT.TH1D("scale", "scale", scale_idx.shape[0], onp.linspace(0, scale_idx.shape[0], scale_idx.shape[0]+1))
+    scaleplot = ROOT.TH1D("scale", "scale", nBins, onp.linspace(0, nBins, nBins+1))
+    scaleplot = array2hist(scale, scaleplot, scale_err)
 
-    #stuff for assigning the correct label to bins in the unrolled plot
-    scale_good = scale[scale_idx]
-    scale_new = np.zeros_like(scale)
-    scale_new = jax.ops.index_update(scale_new, scale_idx, scale_good)
-    scale_4d = np.reshape(scale_new,(nEtaBins,nEtaBins,nPtBins,nPtBins))
-
-    scaleplot.GetYaxis().SetTitle('scale')
-    scaleplot = array2hist(scale_good, scaleplot, scale_err)
-
-    bin1D = 1
-    for ieta1 in range(nEtaBins):
-        for ieta2 in range(nEtaBins):
-            for ipt1 in range(nPtBins):
-                for ipt2 in range(nPtBins):
-
-                    if scale_4d[ieta1,ieta2,ipt1,ipt2] == 0.: continue
-                    scaleplot.GetXaxis().SetBinLabel(bin1D,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
-                    bin1D = bin1D+1
+    for ibin in range(nBins):
+        ieta1 = good_idx[0][ibin]
+        ieta2 = good_idx[1][ibin]
+        ipt1 = good_idx[2][ibin]
+        ipt2 = good_idx[3][ibin]
+        scaleplot.GetXaxis().SetBinLabel(ibin+1,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
 
     scaleplot.GetXaxis().LabelsOption("v")
 
@@ -307,28 +294,17 @@ else:
     f = ROOT.TFile("scaleMC.root", 'recreate')
     f.cd()
 
-    scaleplot = ROOT.TH1D("scale", "scale", good_idx.shape[0]/3, onp.linspace(0, good_idx.shape[0]/3, good_idx.shape[0]/3+1))
+    scaleplot = ROOT.TH1D("scale", "scale", nBins, onp.linspace(0, nBins, nBins+1))
     scaleplot.GetYaxis().SetTitle('scale')
 
-    scaleplot = array2hist(fitres[:good_idx.shape[0]/3], scaleplot, np.sqrt(np.diag(invhess)[:good_idx.shape[0]/3]))
+    scaleplot = array2hist(fitres[:nBins], scaleplot, np.sqrt(np.diag(invhess)[:nBins]))
 
-    scale_idx = np.where((np.sum(datasetgen,axis=2)>4000.).flatten())[0]
-
-    scale = res.x[:sep]
-    scale_good = scale[scale_idx]
-    scale_new = np.zeros_like(scale)
-    scale_new = jax.ops.index_update(scale_new, scale_idx, scale_good)
-    scale_4d = np.reshape(scale_new,(nEtaBins,nEtaBins,nPtBins,nPtBins))
-
-    bin1D = 1
-    for ieta1 in range(nEtaBins):
-        for ieta2 in range(nEtaBins):
-            for ipt1 in range(nPtBins):
-                for ipt2 in range(nPtBins):
-
-                    if scale_4d[ieta1,ieta2,ipt1,ipt2] == 0.: continue
-                    scaleplot.GetXaxis().SetBinLabel(bin1D,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
-                    bin1D = bin1D+1
+    for ibin in range(nBins):
+        ieta1 = good_idx[0][ibin]
+        ieta2 = good_idx[1][ibin]
+        ipt1 = good_idx[2][ibin]
+        ipt2 = good_idx[3][ibin]
+        scaleplot.GetXaxis().SetBinLabel(ibin+1,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
 
     scaleplot.GetXaxis().LabelsOption("v")
     scaleplot.Write()
