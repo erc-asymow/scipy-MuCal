@@ -141,15 +141,15 @@ xtol = np.finfo('float64').eps
 #btol = 1.e-8
 btol = 0.1
 maxiter = 100000
-#maxiter = 50
+#maxiter = 2
 
 if runCalibration:
 
     lb_scale = np.concatenate((0.95*np.ones(nEtaBins),-0.05*np.ones(nEtaBins), -1e-2*np.ones(nEtaBins)),axis=0)
     ub_scale = np.concatenate((1.05*np.ones(nEtaBins),0.05*np.ones(nEtaBins), 1e-2*np.ones(nEtaBins)),axis=0)
 else:   
-    lb_scale = np.full((nBins),0.5)
-    ub_scale = np.full((nBins),2.)
+    lb_scale = np.full((nBins),0.95)
+    ub_scale = np.full((nBins),1.05)
 
 lb_sigma = np.full((nBins),-np.inf)
 lb_nsig = np.full((nBins),-np.inf)
@@ -175,6 +175,7 @@ else:
 fgradnll = jax.jit(jax.value_and_grad(fnllx))
 
 def fgradnlldebug(x):
+    print(x)
     f,grad = fgradnll(x)
     if np.isnan(f) or np.any(np.isnan(grad)):
         print("nan detected")
@@ -295,7 +296,7 @@ if runCalibration:
 
 else:
     print("plotting...")
-    plots(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ)
+    plots(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ,good_idx)
 
     f = ROOT.TFile("scaleMC.root", 'recreate')
     f.cd()

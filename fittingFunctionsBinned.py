@@ -201,7 +201,7 @@ def nllPars(x,nEtaBins,nPtBins,dataset,datasetGen, masses,isJ, etas, binCenters1
 
     return np.sum(nll)
 
-def plots(x,nEtaBins,nPtBins,dataset,datasetGen,masses,isJ):
+def plots(x,nEtaBins,nPtBins,dataset,datasetGen,masses,isJ, good_idx):
 
     if isJ:
         maxR = 3.3
@@ -224,7 +224,12 @@ def plots(x,nEtaBins,nPtBins,dataset,datasetGen,masses,isJ):
 
     mass = np.linspace(minR,maxR,100)
 
-    for ibin in nBins:
+    for ibin in range(nBins):
+        ieta1 = good_idx[0][ibin]
+        ieta2 = good_idx[1][ibin]
+        ipt1 = good_idx[2][ibin]
+        ipt2 = good_idx[3][ibin]     
+        
         scale_bin = scale[ibin]
         sigma_bin = sigma[ibin]
         nsig_bin = nsig[ibin]
