@@ -48,14 +48,13 @@ def defineStatebkg(nEtaBins,nPtBins,dataset):
     return x.astype('float64')
 
 def defineStatePars(nEtaBins,nPtBins,dataset, isJ):
-    #seed = 260292
     
     nBins = dataset.shape[0]
     ndata = np.sum(dataset,axis=-1)    
 
-    A = np.ones((nEtaBins)) #+ random.multivariate_normal(random.PRNGKey(seed),np.zeros((nEtaBins)), 0.0000005*np.eye((nEtaBins)))
-    e = np.zeros((nEtaBins)) #+ random.multivariate_normal(random.PRNGKey(seed),np.zeros((nEtaBins)), 0.000005*np.eye((nEtaBins)))
-    M = np.zeros((nEtaBins)) #+ random.multivariate_normal(random.PRNGKey(seed),np.zeros((nEtaBins)), 0.00000000005*np.eye((nEtaBins)))
+    A = np.ones((nEtaBins))
+    e = np.zeros((nEtaBins))
+    M = np.zeros((nEtaBins))
     sigma = np.full((nBins,),-4.9, dtype='float64')
     nsig = np.log(np.where(ndata>0.,ndata,2.))
 
@@ -63,6 +62,29 @@ def defineStatePars(nEtaBins,nPtBins,dataset, isJ):
         x = np.concatenate((A, e, M, sigma, nsig),axis=0)
     else:
         x = np.concatenate((A, M, sigma, nsig),axis=0)
+
+    print(x.shape, 'x.shape')
+                
+    return x.astype('float64')
+
+def defineStateParsSigma(nEtaBins,nPtBins,dataset, isJ):
+
+    nBins = dataset.shape[0]
+    ndata = np.sum(dataset,axis=-1)    
+
+    A = np.ones((nEtaBins))
+    e = np.zeros((nEtaBins))
+    M = np.zeros((nEtaBins))
+    a = 0.07e-3*np.ones((nEtaBins))
+    #b = 0.02e-3*np.ones((nEtaBins))
+    #c = 1.5e-8*np.ones((nEtaBins))
+    #d = 370.*np.ones((nEtaBins))
+    nsig = np.log(np.where(ndata>0.,ndata,2.))
+
+    if isJ:
+        x = np.concatenate((A, e, M, a, nsig),axis=0)
+    else:
+        x = np.concatenate((A, M, a, nsig),axis=0)
 
     print(x.shape, 'x.shape')
                 
@@ -89,6 +111,7 @@ def kernelpdf(scale, sigma, datasetGen, masses):
     #numerical integration over reco mass bins
     I = np.sum(pdf, axis=-1, keepdims=True)
     pdf = pdf/I
+
     return pdf
 
 def kernelpdfPars(A, e, M, sigma, datasetGen, masses, etas, binCenters1, binCenters2, good_idx):
@@ -117,6 +140,70 @@ def kernelpdfPars(A, e, M, sigma, datasetGen, masses, etas, binCenters1, binCent
     term2 = A2-s2*e2*c2-M2/c2
     combos = term1*term2
     scale = np.sqrt(combos)
+    
+    return kernelpdf(scale, sigma, datasetGen, masses)
+
+def computeTrackLength(eta):
+
+    L0=108.-4.4 #max track length in cm. tracker radius - first pixel layer
+
+    tantheta = 2/(np.exp(eta)-np.exp(-eta))
+    r = 267.*tantheta #267 cm: z position of the outermost disk of the TEC 
+    #L = np.where(np.absolute(eta) <= 1.4, L0, (np.where(eta > 1.4, min(r, 108.)-4.4, min(-r, 108.)-4.4)))
+
+    #print(L)
+    
+    return np.ones((eta.shape[0]))
+
+def kernelpdfParsSigma(A, e, M, a, b, c, d, datasetGen, masses, etas, binCenters1, binCenters2, good_idx):
+
+    #compute scale from physics parameters
+    etasC = (etas[:-1] + etas[1:]) / 2.
+
+    sEta = np.sin(2*np.arctan(np.exp(-etasC)))
+    s1 = sEta[good_idx[0]]
+    s2 = sEta[good_idx[1]]
+    
+    k1 = binCenters1
+    k2 = binCenters2
+
+    # select the model parameters from the eta bins corresponding
+    # to each kinematic bin
+    A1 = A[good_idx[0]]
+    e1 = e[good_idx[0]]
+    M1 = M[good_idx[0]]
+
+    A2 = A[good_idx[1]]
+    e2 = e[good_idx[1]]
+    M2 = M[good_idx[1]]
+
+    term1 = A1-s1*e1*k1+M1/k1
+    term2 = A2-s2*e2*k2-M2/k2
+    combos = term1*term2
+    scale = np.sqrt(combos)
+
+    #rough approximation for now
+    p1 = 1./binCenters1
+    p2 = 1./binCenters2
+
+    L = computeTrackLength(etasC)
+    l1 = L[good_idx[0]]
+    l2 = L[good_idx[1]]
+
+    a1 = a[good_idx[0]]
+    b1 = a[good_idx[0]]
+    c1 = a[good_idx[0]]
+    d1 = a[good_idx[0]]
+
+    a2 = a[good_idx[1]]
+    b2 = a[good_idx[1]]
+    c2 = a[good_idx[1]]
+    d2 = a[good_idx[1]]
+
+    res1 = a1*np.power(l1,2) #+ c1*np.power(l1,4)*np.power(p1,2) + b1*np.power(l1,2)/(1+d1/(np.power(p1,2)*np.power(l1,2)))
+    res2 = a2*np.power(l2,2) #+ c2*np.power(l2,4)*np.power(p2,2) + b2*np.power(l2,2)/(1+d2/(np.power(p2,2)*np.power(l2,2)))
+
+    sigma = 1./2.*np.sqrt(res1+res2)
     
     return kernelpdf(scale, sigma, datasetGen, masses)
 
@@ -195,6 +282,34 @@ def nllPars(x,nEtaBins,nPtBins,dataset,datasetGen, masses,isJ, etas, binCenters1
         nsig = np.exp(x[2*nEtaBins+nBins:])
     
     sigpdf = nsig[:,np.newaxis]*kernelpdfPars(A, e, M, sigma, datasetGen, masses, etas, binCenters1, binCenters2, good_idx)
+
+    #TODO revisit this protection
+    nll = nsig - np.sum(dataset*np.log(np.where(dataset>0.,sigpdf,1.)), axis = -1)
+
+    return np.sum(nll)
+
+def nllParsSigma(x,nEtaBins,nPtBins,dataset,datasetGen, masses,isJ, etas, binCenters1, binCenters2, good_idx):
+
+    nBins = dataset.shape[0]
+
+    A = x[:nEtaBins]
+
+    if isJ:
+        e = x[nEtaBins:2*nEtaBins]
+        M = x[2*nEtaBins:3*nEtaBins]
+        a = x[3*nEtaBins:4*nEtaBins]
+        nsig = np.exp(x[4*nEtaBins:])
+    else: 
+        e = np.zeros((nEtaBins))
+        M = x[nEtaBins:2*nEtaBins]
+        a = x[2*nEtaBins:3*nEtaBins]
+        nsig = np.exp(x[3*nEtaBins:])
+
+    b = 0.03e-3*np.ones((nEtaBins))
+    c = 15.e-9*np.ones((nEtaBins))
+    d = 370.*np.ones((nEtaBins))
+    
+    sigpdf = nsig[:,np.newaxis]*kernelpdfParsSigma(A, e, M, a, b, c, d, datasetGen, masses, etas, binCenters1, binCenters2, good_idx)
 
     #TODO revisit this protection
     nll = nsig - np.sum(dataset*np.log(np.where(dataset>0.,sigpdf,1.)), axis = -1)

@@ -28,7 +28,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, plots, plotsPars
+from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars
 import argparse
 import functools
 
@@ -104,10 +104,13 @@ def scaleFromPars(AeM, etas, binCenters1, binCenters2, good_idx):
 parser = argparse.ArgumentParser('')
 parser.add_argument('-isJ', '--isJ', default=False, action='store_true', help='Use to run on JPsi, omit to run on Z')
 parser.add_argument('-runCalibration', '--runCalibration', default=False, action='store_true', help='Use to fit corrections, omit to fit scale parameter')
+parser.add_argument('-fitResolution', '--fitResolution', default=False, action='store_true', help='Use to fit resolution paramter, omit to fit sigma')
+
 
 args = parser.parse_args()
 isJ = args.isJ
 runCalibration = args.runCalibration
+fitResolution = args.fitResolution
 
 file = open("calInput{}MC_4etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 pkg = pickle.load(file)
@@ -130,7 +133,10 @@ nBins = dataset.shape[0]
 print(pts)
 
 if runCalibration:
-    x = defineStatePars(nEtaBins,nPtBins, dataset, isJ)
+    if fitResolution:
+        x = defineStateParsSigma(nEtaBins,nPtBins, dataset, isJ)
+    else:
+        x = defineStatePars(nEtaBins,nPtBins, dataset, isJ)
 else:
     x = defineState(nEtaBins,nPtBins, dataset)
 
@@ -138,23 +144,32 @@ else:
 print("minimising")
 
 xtol = np.finfo('float64').eps
-#btol = 1.e-8
-btol = 0.1
+btol = 1.e-8
+#btol = 0.1
 maxiter = 100000
 #maxiter = 2
 
 if runCalibration:
-
     lb_scale = np.concatenate((0.95*np.ones(nEtaBins),-0.05*np.ones(nEtaBins), -1e-2*np.ones(nEtaBins)),axis=0)
     ub_scale = np.concatenate((1.05*np.ones(nEtaBins),0.05*np.ones(nEtaBins), 1e-2*np.ones(nEtaBins)),axis=0)
+
+    if fitResolution:
+        #lb_sigma = np.concatenate((np.zeros(nEtaBins),np.zeros(nEtaBins),np.zeros(nEtaBins),np.zeros(nEtaBins)), axis =0)
+        #ub_sigma = np.concatenate((1.e-3*np.ones(nEtaBins),1.e-3*np.ones(nEtaBins),1.e-4*np.ones(nEtaBins),100000.*np.ones(nEtaBins)), axis =0)
+        lb_sigma = np.zeros(nEtaBins)
+        ub_sigma = 1.e-3*np.ones(nEtaBins)
+    else:
+        lb_sigma = np.full((nBins),-np.inf)
+        ub_sigma = np.full((nBins),np.inf)
 else:   
     lb_scale = np.full((nBins),0.95)
     ub_scale = np.full((nBins),1.05)
 
-lb_sigma = np.full((nBins),-np.inf)
-lb_nsig = np.full((nBins),-np.inf)
+    lb_sigma = np.full((nBins),-np.inf)
+    ub_sigma = np.full((nBins),np.inf)
 
-ub_sigma = np.full((nBins),np.inf)
+
+lb_nsig = np.full((nBins),-np.inf)
 ub_nsig = np.full((nBins),np.inf)
 
 lb = np.concatenate((lb_scale,lb_sigma,lb_nsig),axis=0)
@@ -163,7 +178,10 @@ ub = np.concatenate((ub_scale,ub_sigma,ub_nsig),axis=0)
 constraints = LinearConstraint( A=np.eye(x.shape[0]), lb=lb, ub=ub,keep_feasible=True )
 
 if runCalibration:
-    fnll = nllPars
+    if fitResolution:
+        fnll = nllParsSigma
+    else:
+        fnll = nllPars
     #convert fnll to single parameter function fnllx(x)
     fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, isJ=isJ, etas=etas, masses=masses, binCenters1=binCenters1, binCenters2=binCenters2, good_idx=good_idx)
 else:
@@ -173,6 +191,7 @@ else:
 
 
 fgradnll = jax.jit(jax.value_and_grad(fnllx))
+#fgradnll = jax.value_and_grad(fnllx)
 
 def fgradnlldebug(x):
     print(x)
@@ -238,7 +257,7 @@ plt.colorbar()
 plt.savefig("corrMC.pdf")
 
 if runCalibration:
-    plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ,etas, binCenters1, binCenters2, good_idx)
+    #plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ,etas, binCenters1, binCenters2, good_idx)
 
     A = res.x[:nEtaBins, np.newaxis]
     e = res.x[nEtaBins:2*nEtaBins]
@@ -259,6 +278,13 @@ if runCalibration:
     hA.GetXaxis().SetTitle('#eta')
     he.GetXaxis().SetTitle('#eta')
     hM.GetXaxis().SetTitle('#eta')
+
+    if fitResolution:
+        a = res.x[3*nEtaBins:4*nEtaBins]
+        ha = ROOT.TH1D("a", "a", nEtaBins, onp.array(etas.tolist()))
+        ha = array2hist(a, ha, np.sqrt(np.diag(invhess)[3*nEtaBins:4*nEtaBins]))
+        ha.GetYaxis().SetTitle('material correction')
+        ha.GetXaxis().SetTitle('#eta')
 
     AeM = res.x[:3*nEtaBins]
     scale = scaleFromPars(AeM, etas, binCenters1, binCenters2, good_idx)
@@ -292,6 +318,8 @@ if runCalibration:
     hA.Write()
     he.Write()
     hM.Write()
+    if fitResolution:
+        ha.Write()
     scaleplot.Write()
 
 else:
