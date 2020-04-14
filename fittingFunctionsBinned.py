@@ -289,7 +289,7 @@ def plots(x,nEtaBins,nPtBins,dataset,datasetGen,isJ):
 
     mass = np.linspace(minR,maxR,100)
 
-    for ibin in nBins:
+    for ibin in range(nBins):
         scale_bin = scale[ibin]
         sigma_bin = sigma[ibin]
         nsig_bin = nsig[ibin]

@@ -289,7 +289,7 @@ if runCalibration:
     scaleplot.Write()
 
 else:
-    plots(res.x,nEtaBins,nPtBins,dataset,datasetgen,isJ)
+    #plots(res.x,nEtaBins,nPtBins,dataset,datasetgen,isJ)
 
     f = ROOT.TFile("scaleMC.root", 'recreate')
     f.cd()
