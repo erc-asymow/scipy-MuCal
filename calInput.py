@@ -26,7 +26,7 @@ dataDir = args.dataDir
 ROOT.ROOT.EnableImplicitMT()
 RDF = ROOT.ROOT.RDataFrame
 
-restrictToBarrel = True
+restrictToBarrel = False
 
 if isJ:
     inputFileMC ='%s/muonTree.root' % dataDir
@@ -58,7 +58,26 @@ def makeData(inputFile, genMass=False, smearedMass=False, isData=False):
                         for (auto &&gen : myRndGens) gen.SetSeed(seed++);
                         '''.format(NSlots = NSlots))
 
+
+    if isJ:
+        cut = 'pt1>4.3 && pt2>4.3 && pt1<25. && pt2<25.'# && mass>2.9 && mass<3.3'
+        
+    else:
+        cut = 'pt1>20.0 && pt2>20.0 && mass>80. && mass<100.'
+
+    if restrictToBarrel:
+        cut+= '&& fabs(eta1)<0.8 && fabs(eta2)<0.8'
+
+    else:
+        cut+= '&& fabs(eta1)<2.4 && fabs(eta2)<2.4' 
+
+    if genMass:
+
+        cut+= '&& mcpt1>0. && mcpt2>0.'
+
     print(cut)
+
+    
 
     d = d.Filter(cut)\
         .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105658)')\
@@ -173,8 +192,11 @@ good_idx = np.nonzero(np.sum(histoGen,axis=-1)>4000.)
 
 histoGen = histoGen[good_idx]
 
-pkgD = makepkg(dataMC, etas, pts, masses, good_idx)
+print(dataD["eta1"])
+pkgD = makepkg(dataD, etas, pts, masses, good_idx)
 pkgMC = makepkg(dataMC, etas, pts, masses, good_idx, smearedMass=smearedMC)
+
+print(pkgD['dataset'])
 
 if not isJ:
     pklfileGen = 'calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1)
