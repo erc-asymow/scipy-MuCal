@@ -93,7 +93,9 @@ def defineStateParsSigma(nEtaBins,nPtBins,dataset, isJ):
 def kernelpdf(scale, sigma, datasetGen, masses):
 
     valsMass = 0.5*(masses[:-1]+masses[1:])
-    massWidth = masses[:-1]-masses[1:]
+    massWidth = masses[1:]-masses[:-1]
+    massWidth = massWidth[np.newaxis,:]
+
     
     valsReco = valsMass[np.newaxis,:,np.newaxis]
     valsGen = valsMass[np.newaxis,np.newaxis,:]
@@ -109,7 +111,8 @@ def kernelpdf(scale, sigma, datasetGen, masses):
     #sum over gen mass bins
     pdf = np.sum(pdfarg,axis=-1)
     #numerical integration over reco mass bins
-    I = np.sum(pdf, axis=-1, keepdims=True)
+    I = np.sum(massWidth*pdf, axis=-1, keepdims=True)
+
     pdf = pdf/I
 
     return pdf
@@ -191,14 +194,14 @@ def kernelpdfParsSigma(A, e, M, a, b, c, d, datasetGen, masses, etas, binCenters
     l2 = L[good_idx[1]]
 
     a1 = a[good_idx[0]]
-    b1 = a[good_idx[0]]
-    c1 = a[good_idx[0]]
-    d1 = a[good_idx[0]]
+    b1 = b[good_idx[0]]
+    c1 = c[good_idx[0]]
+    d1 = d[good_idx[0]]
 
     a2 = a[good_idx[1]]
-    b2 = a[good_idx[1]]
-    c2 = a[good_idx[1]]
-    d2 = a[good_idx[1]]
+    b2 = b[good_idx[1]]
+    c2 = c[good_idx[1]]
+    d2 = d[good_idx[1]]
 
     res1 = a1*np.power(l1,2) #+ c1*np.power(l1,4)*np.power(p1,2) + b1*np.power(l1,2)/(1+d1/(np.power(p1,2)*np.power(l1,2)))
     res2 = a2*np.power(l2,2) #+ c2*np.power(l2,4)*np.power(p2,2) + b2*np.power(l2,2)/(1+d2/(np.power(p2,2)*np.power(l2,2)))
@@ -206,29 +209,6 @@ def kernelpdfParsSigma(A, e, M, a, b, c, d, datasetGen, masses, etas, binCenters
     sigma = 1./2.*np.sqrt(res1+res2)
     
     return kernelpdf(scale, sigma, datasetGen, masses)
-
-def exppdf(slope):
-
-    if isJ:
-        maxR = 3.3
-        minR = 2.9
-    else:
-        maxR = 75.
-        minR = 115.
-
-    valsReco = np.linspace(minR,maxR,100)
-
-    I = (np.exp(-slope*minR) - np.exp(-slope*maxR))/slope
-
-    massbinwidth = (maxR-minR)/100
-
-    h = np.tensordot(slope,valsReco,axes=0) 
-    h_ext = np.swapaxes(np.swapaxes(h,2,4),3,4)
-
-    pdf = np.exp(-h_ext)/I
-
-    return pdf*massbinwidth
-
 
 def nll(x,nEtaBins,nPtBins,dataset,datasetGen, masses):
 

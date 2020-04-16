@@ -28,7 +28,7 @@ dataDir = args.dataDir
 ROOT.ROOT.EnableImplicitMT()
 RDF = ROOT.ROOT.RDataFrame
 
-restrictToBarrel = True
+restrictToBarrel = False
 
 if isJ:
     cut = 'pt1>4.3 && pt2>4.3 && pt1<25. && pt2<25.'# && mass>2.9 && mass<3.3'
@@ -158,7 +158,7 @@ if smearedMC:
 dataD = makeData(inputFileD)
 dataMC = makeData(inputFileMC, genMass=True, smearedMass=smearedMC)
 
-nEtaBins = 4
+nEtaBins = 50
 nPtBins = 5
 nMassBins = 100
 
@@ -208,8 +208,11 @@ pklfileData+='.pkl'
 pklfileMC+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(pts)-1)
 pklfileMC+='.pkl'
 
-with open(pklfileMC, 'wb') as filehandler:
-    pickle.dump(pkgMC, filehandler)
+if isData:
+    with open(pklfileData, 'wb') as filehandler:
+        pickle.dump(pkgD, filehandler)
+else:
+    with open(pklfileMC, 'wb') as filehandler:
+        pickle.dump(pkgMC, filehandler)
     
-with open(pklfileData, 'wb') as filehandler:
-    pickle.dump(pkgD, filehandler)
+
