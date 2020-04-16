@@ -28,9 +28,10 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars, plotsParsBkg, scaleFromPars, splitTransformPars
+from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars, plotsParsBkg, scaleFromPars, splitTransformPars, nllBins
 import argparse
 import functools
+import time
 
 #slower but lower memory usage calculation of hessian which
 #explicitly loops over hessian rows
@@ -68,6 +69,10 @@ def hessianopt(fun):
         return vhvp(basis).reshape(x.shape + x.shape)
     return functools.partial(_hessianopt, f=fun)
 
+
+#def vgrad(fun):
+    #g = jax.grad(fun)
+    #return jax.vmap(g)
 
 def hvp(fun):
     def _hvp(x, v, f):
@@ -188,6 +193,105 @@ else:
     fnll = nll
     #convert fnll to single parameter function fnllx(x)
     fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, masses=masses)
+
+
+
+#def vgrad(fun):
+    #g = jax.grad(fun)
+    #return jax.vmap(g)
+
+#tests = np.array(5.)
+#print(tests.shape)
+#assert(0)
+
+scale = np.ones((nBins,),dtype='float64')
+sigma = 6e-3*np.ones((nBins,),dtype='float64')
+fbkg = 0.05*np.ones((nBins,),dtype='float64')
+slope = 0.02*np.ones((nBins,),dtype='float64')
+
+xscale = np.stack([scale,sigma,fbkg,slope],axis=-1)
+
+nllBinspartial = functools.partial(nllBins, masses=masses)
+
+gbins = jax.grad(nllBinspartial, argnums=(0))
+vgbins = jax.vmap(gbins)
+vgbins = jax.jit(vgbins,static_argnums=(1,2))
+
+hbins = jax.hessian(nllBinspartial, argnums=0)
+vhbins = jax.vmap(hbins)
+vhbins = jax.jit(vhbins,static_argnums=(1,2))
+
+ve = jax.vmap(np.linalg.eigh)
+
+#gbins = jax.jit(gbins)
+
+#vgbins = jax.jit(vgbins)
+
+
+
+
+def nllsum(xscale):
+    return np.sum(nllBins(xscale, dataset, datasetgen, masses))
+
+gnsum = jax.jit(jax.grad(nllsum))
+hnsum = hessianlowmem(nllsum)
+
+
+vgnllbins = vgbins(xscale,dataset,datasetgen)
+#gnllbins = gbins(scale,sigma,fbkg,slope,dataset,datasetgen)
+gnllbinssum = gnsum(scale)
+
+vhnllbins = vhbins(xscale,dataset,datasetgen)
+
+e,u = ve(vhnllbins)
+print(e.shape)
+print(e)
+print(np.min(e))
+
+assert(0)
+
+print(vhnllbins.shape)
+print(vhnllbins)
+#print(len(vhnllbins))
+#print(vhnllbins[0])
+#print(len(vhnllbins[0]))
+#print(vhnllbins[0][0])
+
+def benchmark(fun, number=100):
+    #with jax.disable_jit():
+    t0 = time.time()
+    for i in range(number):
+        #xr = xscale + 1e-6*onp.random.standard_normal()
+        res = fun()
+        print(res.flatten()[0])
+    t = time.time() - t0
+    print(t,number)
+    return t/number
+
+#assert(0)
+
+#print(vgnllbins.shape)
+#print(vgnllbins)
+#print(gnllbinssum.shape)
+#print(gnllbinssum)
+
+resv = benchmark(lambda: vgbins(xscale,dataset,datasetgen), number=10)
+ressum = benchmark(lambda: gnsum(xscale), number=10)
+resvh = benchmark(lambda: vhbins(xscale,dataset,datasetgen), number=10)
+resh = benchmark(lambda: hnsum(xscale), number=1)
+
+#resv = benchmark(vgbins, number=10)
+#resvh = benchmark(vhbins, number=10)
+
+#print(resv, resvh)
+print(resv,ressum, resvh)
+
+
+#vgradnll = jax.jit(vgrad(fnllx))
+
+#print(vgradnll(x))
+
+assert(0)
 
 
 fgradnll = jax.jit(jax.value_and_grad(fnllx))

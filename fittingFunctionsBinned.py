@@ -121,15 +121,24 @@ def kernelpdf(scale, sigma, datasetGen, masses):
 
     valsMass = 0.5*(masses[:-1]+masses[1:])
     massWidth = masses[1:]-masses[:-1]
-    massWidth = massWidth[np.newaxis,:]
+    #massWidth = massWidth[np.newaxis,:]
+    massWidth = np.reshape(massWidth, len(scale.shape)*(1,) + (-1,))
     
-    valsReco = valsMass[np.newaxis,:,np.newaxis]
-    valsGen = valsMass[np.newaxis,np.newaxis,:]
+    valsReco = np.reshape(valsMass, len(scale.shape)*(1,) + (-1,1))
+    valsGen = np.reshape(valsMass, len(scale.shape)*(1,) + (1,-1))
     
-    scale_ext = scale[:,np.newaxis,np.newaxis]
-    sigma_ext = valsGen*sigma[:,np.newaxis,np.newaxis]
+    #valsReco = valsMass[np.newaxis,:,np.newaxis]
+    #valsGen = valsMass[np.newaxis,np.newaxis,:]
+    
+    #scale_ext = scale[:,np.newaxis,np.newaxis]
+    #sigma_ext = valsGen*sigma[:,np.newaxis,np.newaxis]
+    
+    scale_ext = np.reshape(scale, scale.shape + (1,1))
+    sigma_ext = valsGen*np.reshape(sigma, sigma.shape + (1,1))
 
     h = scale_ext*valsGen
+
+    datasetGen_ext = np.expand_dims(datasetGen,-2)
 
     #analytic integral
     #xscale = np.sqrt(2.)*sigma_ext
@@ -143,7 +152,7 @@ def kernelpdf(scale, sigma, datasetGen, masses):
 
 
     #contribution from each gen mass bin with correct relative normalization
-    pdfarg = datasetGen[:,np.newaxis,:]*np.exp(-np.power(valsReco  -h, 2.)/(2 * np.power(sigma_ext, 2.)))/sigma_ext/np.sqrt(2.*np.pi)
+    pdfarg = datasetGen_ext*np.exp(-np.power(valsReco  -h, 2.)/(2 * np.power(sigma_ext, 2.)))/sigma_ext/np.sqrt(2.*np.pi)
     #sum over gen mass bins
     pdf = np.sum(pdfarg,axis=-1)
     #numerical integration over reco mass bins
@@ -199,16 +208,16 @@ def computeTrackLength(eta):
 
 def exppdf(slope, masses):
     nBinsMass = masses.shape[0]
-    massWidth = masses[1:]-masses[:-1]
-    massWidth = massWidth[np.newaxis,:]
-    
-    massWidth = masses[1:]-masses[:-1]
-    massWidth = massWidth[np.newaxis,:]
     
     valsMass = 0.5*(masses[:-1]+masses[1:])
-    valsReco = valsMass[np.newaxis,:]
+    massWidth = masses[1:]-masses[:-1]
+    #massWidth = massWidth[np.newaxis,:]
+    massWidth = np.reshape(massWidth, len(slope.shape)*(1,) + (-1,))
     
-    slope_ext = slope[:,np.newaxis]
+    
+    valsReco = np.reshape(valsMass, len(slope.shape)*(1,) + (-1,))
+    
+    slope_ext = np.expand_dims(slope,-1)
     
     #analytic integral
     #I = (np.exp(-slope_ext*masses[0]) - np.exp(-slope_ext*masses[-1]))/slope_ext
@@ -386,6 +395,24 @@ def splitTransformPars(x, ndata, nEtaBins, nBins, isJ=True):
     
     return A,e,M,a,b,c,d,nsig,nbkg,slope
     
+
+def nllBins(x, dataset, datasetGen, masses):
+    
+    scale = x[...,0]
+    sigma = x[...,1]
+    fbkg = x[...,2]
+    slope = x[...,3]
+    
+    sigpdf = kernelpdf(scale,sigma, datasetGen, masses)
+    bkgpdf = exppdf(slope, masses)
+    
+    fbkg_ext = np.expand_dims(fbkg,-1)
+    
+    pdf = (1.-fbkg_ext)*sigpdf + fbkg_ext*bkgpdf
+    print(sigpdf.shape, bkgpdf.shape)
+    
+    nll = np.sum(-dataset*np.log(np.where(dataset>0., pdf, 1.)),axis=-1)
+    return nll
 
 def nllParsSigma(x,nEtaBins,nPtBins,dataset,datasetGen, masses,isJ, etas, binCenters1, binCenters2, good_idx):
     
