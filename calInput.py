@@ -14,37 +14,19 @@ ROOT.gROOT.ProcessLine(".L src/applyCalibration.cpp+")
 parser = argparse.ArgumentParser('')
 parser.add_argument('-isJ', '--isJ', default=False, action='store_true', help='Use to run on JPsi, omit to run on Z')
 parser.add_argument('-smearedMC', '--smearedMC', default=False, action='store_true', help='Use smeared gen mass in MC, omit for using reco mass')
-parser.add_argument('-isData', '--isData', default=False, action='store_true', help='Use if data, omit if MC')
 parser.add_argument('-runClosure', '--runClosure', default=False, action='store_true', help='Use to apply full calibration. If omit, rescale data for B map and leave MC as it is')
 parser.add_argument('-dataDir', '--dataDir', default='/scratchssd/emanca/wproperties-analysis/muonCalibration/Minimisation', type=str, help='set the directory for input data')
 
 args = parser.parse_args()
 isJ = args.isJ
 smearedMC = args.smearedMC
-isData = args.isData
 runClosure = args.runClosure
 dataDir = args.dataDir
 
 ROOT.ROOT.EnableImplicitMT()
 RDF = ROOT.ROOT.RDataFrame
 
-restrictToBarrel = False
-
-if isJ:
-    cut = 'pt1>4.3 && pt2>4.3 && pt1<25. && pt2<25.'# && mass>2.9 && mass<3.3'
-    
-else:
-    cut = 'pt1>20.0 && pt2>20.0 && mass>80. && mass<100.'
-
-if restrictToBarrel:
-    cut+= '&& fabs(eta1)<0.8 && fabs(eta2)<0.8'
-
-else:
-    cut+= '&& fabs(eta1)<2.4 && fabs(eta2)<2.4' 
-
-if not isData:
-
-    cut+= '&& mcpt1>0. && mcpt2>0.'
+restrictToBarrel = True
 
 if isJ:
     inputFileMC ='%s/muonTree.root' % dataDir
@@ -53,10 +35,18 @@ else:
     inputFileMC ='%s/muonTreeMCZ.root' % dataDir
     inputFileD ='%s/muonTreeDataZ.root' % dataDir
 
-if isData: inputFile = inputFileD
-else: inputFile = inputFileMC
+def makeData(inputFile, genMass=False, smearedMass=False, isData=False):
 
-def makeData(inputFile, genMass=False, smearedMass=False):
+    if isJ:
+        cut = 'pt1>4.3 && pt2>4.3 && pt1<25. && pt2<25.'# && mass>2.9 && mass<3.3'
+    else:
+        cut = 'pt1>20.0 && pt2>20.0 '#&& mass>75. && mass<115.'
+    if restrictToBarrel:
+        cut+= '&& fabs(eta1)<0.8 && fabs(eta2)<0.8'
+    else:
+        cut+= '&& fabs(eta1)<2.4 && fabs(eta2)<2.4' 
+    if not isData:
+        cut+= '&& mcpt1>0. && mcpt2>0.'
 
     d = RDF('tree',inputFile)
 
@@ -71,12 +61,12 @@ def makeData(inputFile, genMass=False, smearedMass=False):
     print(cut)
 
     d = d.Filter(cut)\
-        .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105)')\
-        .Define('v2', 'ROOT::Math::PtEtaPhiMVector(pt2,eta2,phi2,0.105)')
+        .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105658)')\
+        .Define('v2', 'ROOT::Math::PtEtaPhiMVector(pt2,eta2,phi2,0.105658)')
     
     if smearedMass:
-        d = d.Define('v1sm', 'ROOT::Math::PtEtaPhiMVector(mcpt1+myRndGens[rdfslot_].Gaus(0., cErr1*mcpt1),eta1,phi1,0.105)')\
-            .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*mcpt2),eta2,phi2,0.105)')\
+        d = d.Define('v1sm', 'ROOT::Math::PtEtaPhiMVector(mcpt1+myRndGens[rdfslot_].Gaus(0., cErr1*mcpt1),eta1,phi1,0.105658)')\
+            .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*mcpt2),eta2,phi2,0.105658)')\
             .Define('smearedgenMass', '(v1sm+v2sm).M()')
 
     f = ROOT.TFile.Open('%s/bFieldMap.root' % dataDir)
@@ -155,16 +145,18 @@ mcrecomass = "mass"
 if smearedMC:
     mcrecomass = "smearedgenMass"
 
-dataD = makeData(inputFileD)
+dataD = makeData(inputFileD, isData=True)
 dataMC = makeData(inputFileMC, genMass=True, smearedMass=smearedMC)
 
-nEtaBins = 50
+nEtaBins = 4
 nPtBins = 5
 nMassBins = 100
 
-etas = np.linspace(-0.8, 0.8, nEtaBins+1, dtype='float64')
+if restrictToBarrel:
+    etas = np.linspace(-0.8, 0.8, nEtaBins+1, dtype='float64')
+else:
+    etas = np.linspace(-2.4, 2.4, nEtaBins+1, dtype='float64')
 
-#etas = np.arange(-0.8, 1., 0.2)
 if isJ:
     masses = np.linspace(2.9, 3.3, nMassBins+1, dtype='float64')
 else:
@@ -208,11 +200,10 @@ pklfileData+='.pkl'
 pklfileMC+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(pts)-1)
 pklfileMC+='.pkl'
 
-if isData:
-    with open(pklfileData, 'wb') as filehandler:
-        pickle.dump(pkgD, filehandler)
-else:
-    with open(pklfileMC, 'wb') as filehandler:
-        pickle.dump(pkgMC, filehandler)
+with open(pklfileData, 'wb') as filehandler:
+    pickle.dump(pkgD, filehandler)
+
+with open(pklfileMC, 'wb') as filehandler:
+    pickle.dump(pkgMC, filehandler)
     
 
