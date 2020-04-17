@@ -29,9 +29,11 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars, plotsParsBkg, scaleFromPars, splitTransformPars, nllBins
+from obsminimization import pmin
 import argparse
 import functools
 import time
+import sys
 
 #slower but lower memory usage calculation of hessian which
 #explicitly loops over hessian rows
@@ -92,6 +94,66 @@ class CachingHVP():
             #self.flin = flin
             self.x = x
         return self.flin(v)
+    
+#def blockfgrad(fun):
+    #g = jax.grad(fun)
+    #return jax.jit(jax.vmap(g))
+    
+class CachingBlockGrads():
+    def __init__(self,fun,nblocks,static_argnums=None,):
+        hess = jax.hessian(fun)
+        vhess = jax.vmap(hess)
+        self._vhess = jax.jit(vhess,static_argnums=static_argnums)
+        self._vmatmul = jax.jit(jax.vmap(np.matmul))
+        self._fgrad = jax.jit(jax.vmap(jax.value_and_grad(fun)),static_argnums=static_argnums)
+        self.vhessres = None
+        self.x = None
+        self.nblocks = nblocks
+        
+    def hvp(self,x,v, *args):
+        if self.x is None or not np.equal(x,self.x).all():
+            self.vhessres = self._vhess(x.reshape((self.nblocks,-1)),*args)
+            self.x = x
+        return self._vmatmul(self.vhessres,v.reshape((self.nblocks,-1))).reshape((-1,))
+    
+    def fgrad(self, x, *args):
+        f,g = self._fgrad(x.reshape((self.nblocks,-1)), *args)
+        f = np.sum(f, axis=0)
+        g = g.reshape((-1,))
+        return f,g
+   
+#wrapper to handle printing which otherwise doesn't work properly from bfgs apparently
+class NLLHandler():
+    def __init__(self, fun, fundebug = None):
+        self.fun = fun
+        self.fundebug = fundebug
+        self.iiter = 0
+        self.f = 0.
+        self.grad = np.array(0.)
+        
+    def wrapper(self, x, *args):
+        f,grad = self.fun(x,*args)
+        if np.isnan(f) or np.any(np.isnan(grad)):
+            print("nan detected")
+            print(x)
+            print(f)
+            print(grad)
+            
+            if self.fundebug is not None:
+                self.fundebug(x)
+                
+            assert(0)    
+        self.f = f
+        self.grad = grad
+        return f,grad
+    
+    def callback(self,x):
+        print(self.iiter, self.f, np.linalg.norm(self.grad))
+        self.iiter += 1
+
+
+    
+    
 
 parser = argparse.ArgumentParser('')
 parser.add_argument('-isJ', '--isJ', default=False, action='store_true', help='Use to run on JPsi, omit to run on Z')
@@ -211,7 +273,50 @@ slope = 0.02*np.ones((nBins,),dtype='float64')
 
 xscale = np.stack([scale,sigma,fbkg,slope],axis=-1)
 
+xscale = np.zeros_like(xscale)
+
 nllBinspartial = functools.partial(nllBins, masses=masses)
+
+pmin(nllBinspartial, xscale, args=(dataset,datasetgen))
+
+assert(0)
+
+h = jax.jit(jax.vmap(jax.hessian(nllBinspartial)))
+ve = jax.vmap(np.linalg.eigh)
+ve = jax.jit(ve)
+e,u = ve(h(xscale,dataset,datasetgen))
+mineig = np.min(e)
+print(mineig)
+#assert(0)
+
+gcache = CachingBlockGrads(nllBinspartial,nBins, static_argnums=(1,2))
+
+f,g = gcache.fgrad(xscale,dataset,datasetgen)
+
+print(f)
+print(g)
+#assert(0)
+
+handler = NLLHandler(gcache.fgrad)
+
+res = minimize(handler.wrapper, xscale.flatten(), args=(dataset, datasetgen), callback=handler.callback,\
+    method = 'trust-krylov',jac = True, hessp=gcache.hvp,\
+    options={'verbose':3,'disp':False,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
+
+
+
+#res = minimize(gcache.fgrad, xscale.flatten(), args=(dataset, datasetgen),\
+    #method = 'trust-constr',jac = True, hess=SR1(), constraints=[],\
+    #options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
+
+#res = minimize(handler.wrapper, xscale.flatten(),args=(dataset, datasetgen),\
+    #method = 'bfgs',jac = True, hess=None,callback=handler.callback,\
+    #options={'verbose':9,'disp':9,'maxiter' : maxiter, 'gtol' : 1e-16, 'xtol' : xtol, 'barrier_tol' : btol})
+
+np.set_printoptions(threshold=sys.maxsize)
+print(res.x)
+
+assert(0)
 
 gbins = jax.grad(nllBinspartial, argnums=(0))
 vgbins = jax.vmap(gbins)
@@ -330,34 +435,7 @@ hesspnll = jax.jit(hvp(fnllx))
     #method = 'trust-constr',jac = True, hess=SR1(),constraints=constraints,\
     #options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
 
-#wrapper to handle printing which otherwise doesn't work properly from bfgs apparently
-class NLLHandler():
-    def __init__(self, fun, fundebug = None):
-        self.fun = fun
-        self.fundebug = fundebug
-        self.iiter = 0
-        self.f = 0.
-        self.grad = np.array(0.)
-        
-    def wrapper(self, x):
-        f,grad = self.fun(x)
-        if np.isnan(f) or np.any(np.isnan(grad)):
-            print("nan detected")
-            print(x)
-            print(f)
-            print(grad)
-            
-            if self.fundebug is not None:
-                self.fundebug(x)
-                
-            assert(0)    
-        self.f = f
-        self.grad = grad
-        return f,grad
-    
-    def callback(self,x):
-        print(self.iiter, self.f, np.linalg.norm(self.grad))
-        self.iiter += 1
+
         
 handler = NLLHandler(fgradnll, fnllx)
 

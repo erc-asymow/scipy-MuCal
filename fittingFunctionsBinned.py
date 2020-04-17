@@ -403,13 +403,17 @@ def nllBins(x, dataset, datasetGen, masses):
     fbkg = x[...,2]
     slope = x[...,3]
     
+    #parameter transforms
+    scale = 1. + 1e-2*np.tanh(scale)
+    sigma = 5e-3*np.exp(4.*np.tanh(sigma))
+    fbkg = 0.5*(1.+np.sin(fbkg))
+    
     sigpdf = kernelpdf(scale,sigma, datasetGen, masses)
     bkgpdf = exppdf(slope, masses)
     
     fbkg_ext = np.expand_dims(fbkg,-1)
     
     pdf = (1.-fbkg_ext)*sigpdf + fbkg_ext*bkgpdf
-    print(sigpdf.shape, bkgpdf.shape)
     
     nll = np.sum(-dataset*np.log(np.where(dataset>0., pdf, 1.)),axis=-1)
     return nll
