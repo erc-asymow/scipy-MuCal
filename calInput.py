@@ -26,15 +26,6 @@ dataDir = args.dataDir
 ROOT.ROOT.EnableImplicitMT()
 RDF = ROOT.ROOT.RDataFrame
 
-restrictToBarrel = False
-
-if isJ:
-    inputFileMC ='%s/muonTree.root' % dataDir
-    inputFileD ='%s/muonTreeData.root' % dataDir
-else:
-    inputFileMC ='%s/muonTreeMCZ.root' % dataDir
-    inputFileD ='%s/muonTreeDataZ.root' % dataDir
-
 def makeData(inputFile, genMass=False, smearedMass=False, isData=False):
 
     if isJ:
@@ -159,15 +150,17 @@ def makepkg(data, etas, pts, masses, good_idx, smearedMass=False):
     
     return pkg
 
+restrictToBarrel = False
 
-mcrecomass = "mass"
-if smearedMC:
-    mcrecomass = "smearedgenMass"
+if isJ:
+    inputFileMC ='%s/muonTree.root' % dataDir
+    inputFileD ='%s/muonTreeData.root' % dataDir
+else:
+    inputFileMC ='%s/muonTreeMCZ.root' % dataDir
+    inputFileD ='%s/muonTreeDataZ.root' % dataDir
 
-dataD = makeData(inputFileD, isData=True)
-dataMC = makeData(inputFileMC, genMass=True, smearedMass=smearedMC)
 
-nEtaBins = 4
+nEtaBins = 48
 nPtBins = 5
 nMassBins = 100
 
@@ -182,31 +175,7 @@ else:
     masses = np.linspace(75., 115., nMassBins+1, dtype='float64')
 
 ptquantiles = np.linspace(0.,1.,nPtBins+1, dtype='float64')
-print(ptquantiles)
-pts = np.quantile(np.concatenate((dataMC['pt1'],dataMC['pt2']),axis=0),ptquantiles)
-print(pts)
 
-histoGen = makeGenDataset(dataMC,etas,pts,masses)
-
-good_idx = np.nonzero(np.sum(histoGen,axis=-1)>4000.)
-
-histoGen = histoGen[good_idx]
-
-print(dataD["eta1"])
-pkgD = makepkg(dataD, etas, pts, masses, good_idx)
-pkgMC = makepkg(dataMC, etas, pts, masses, good_idx, smearedMass=smearedMC)
-
-print(pkgD['dataset'])
-
-if not isJ:
-    pklfileGen = 'calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1)
-    filehandler = open('calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'wb')
-else:
-    pklfileGen = 'calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1)
-    filehandler = open('calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(pts)-1), 'wb')
-    
-with open(pklfileGen, 'wb') as filehandler:
-    pickle.dump(histoGen, filehandler)
 
 pklfileBase = 'calInput{}'.format('J' if isJ else 'Z')
 pklfileData = pklfileBase + 'DATA'
@@ -216,16 +185,54 @@ if smearedMC:
 else:
     pklfileMC = pklfileBase + 'MC'
 
-pklfileData+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(pts)-1)
+pklfileData+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(ptquantiles)-1)
 pklfileData+='.pkl'
 
-pklfileMC+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(pts)-1)
+pklfileMC+='_{}etaBins_{}ptBins'.format(len(etas)-1, len(ptquantiles)-1)
 pklfileMC+='.pkl'
 
-with open(pklfileData, 'wb') as filehandler:
-    pickle.dump(pkgD, filehandler)
+if not isJ:
+    pklfileGen = 'calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1)
+    filehandler = open('calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1), 'wb')
+else:
+    pklfileGen = 'calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1)
+    filehandler = open('calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1), 'wb')
 
+print(pklfileData, pklfileMC)
+#print(pkgD['dataset'][0][0] - pkgMC['dataset'][0])
+
+
+mcrecomass = "mass"
+if smearedMC:
+    mcrecomass = "smearedgenMass"
+
+dataMC = makeData(inputFileMC, genMass=True, smearedMass=smearedMC)
+
+
+print(ptquantiles)
+pts = np.quantile(np.concatenate((dataMC['pt1'],dataMC['pt2']),axis=0),ptquantiles)
+print(pts)
+
+histoGen = makeGenDataset(dataMC,etas,pts,masses)
+
+good_idx = np.nonzero(np.sum(histoGen,axis=-1)>1000.)
+print("good_idx size", good_idx[0].shape)
+
+histoGen = histoGen[good_idx]
+
+with open(pklfileGen, 'wb') as filehandler:
+    pickle.dump(histoGen, filehandler)
+histoGen = None
+
+pkgMC = makepkg(dataMC, etas, pts, masses, good_idx, smearedMass=smearedMC)
+dataMC = None
 with open(pklfileMC, 'wb') as filehandler:
     pickle.dump(pkgMC, filehandler)
-    
+pkgMC = None
 
+dataD = makeData(inputFileD, isData=True)
+pkgD = makepkg(dataD, etas, pts, masses, good_idx)
+dataD = None
+with open(pklfileData, 'wb') as filehandler:
+    pickle.dump(pkgD, filehandler)
+pkgD = None

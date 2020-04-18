@@ -1,4 +1,5 @@
 import jax.numpy as np
+import jax
 from jax import grad, hessian, jacobian, config, random
 from jax.scipy.special import erf
 config.update('jax_enable_x64', True)
@@ -14,6 +15,7 @@ from root_numpy import array2hist, fill_hist
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
+import functools
 
 def defineState(nEtaBins,nPtBins,dataset):
     
@@ -199,11 +201,12 @@ def computeTrackLength(eta):
 
     tantheta = 2/(np.exp(eta)-np.exp(-eta))
     r = 267.*tantheta #267 cm: z position of the outermost disk of the TEC 
-    #L = np.where(np.absolute(eta) <= 1.4, L0, (np.where(eta > 1.4, min(r, 108.)-4.4, min(-r, 108.)-4.4)))
+    L = np.where(np.absolute(eta) <= 1.4, L0, (np.where(eta > 1.4, np.minimum(r, 108.)-4.4, np.minimum(-r, 108.)-4.4)))
 
     #print(L)
+    return L
     
-    return np.ones((eta.shape[0]))
+    #return np.ones((eta.shape[0]))
 
 
 def exppdf(slope, masses):
@@ -217,7 +220,7 @@ def exppdf(slope, masses):
     
     valsReco = np.reshape(valsMass, len(slope.shape)*(1,) + (-1,))
     
-    slope_ext = np.expand_dims(slope,-1)
+    slope_ext = np.expand_dims(slope,-1)/(masses[-1]-masses[0])
     
     #analytic integral
     #I = (np.exp(-slope_ext*masses[0]) - np.exp(-slope_ext*masses[-1]))/slope_ext
@@ -225,7 +228,8 @@ def exppdf(slope, masses):
     #print(I.shape)
     #I = I[:,np.newaxis]
     
-    pdf = np.exp(-slope_ext*valsReco)
+    #pdf = np.exp(-slope_ext*valsReco)
+    pdf = np.exp(-slope_ext*(valsReco-masses[0]))
     #numerical integration over reco mass bins
     #I = np.sum(pdf, axis=-1, keepdims=True)
     I = np.sum(massWidth*pdf, axis=-1, keepdims=True)
@@ -238,7 +242,7 @@ def exppdf(slope, masses):
 
     return pdf
 
-def scaleFromPars(A, e, M, etas, binCenters1, binCenters2, good_idx):
+def scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx, linearize=False):
     etasC = (etas[:-1] + etas[1:]) / 2.
 
     sEta = np.sin(2*np.arctan(np.exp(-etasC)))
@@ -260,16 +264,18 @@ def scaleFromPars(A, e, M, etas, binCenters1, binCenters2, good_idx):
 
     term1 = A1-s1*e1*k1+M1/k1
     term2 = A2-s2*e2*k2-M2/k2
-    combos = (1.+term1)*(1.+term2)
-    scale = np.sqrt(combos)
-    #alternative linearization of sqrt((1+term1)*(1+term2))
-    #scale = np.exp(0.5*(term1+term2))
     
-    return scale
+    if linearize:
+        #neglect quadratic term1*term2
+        scaleSq = 1.+term1+term2
+    else:
+        scaleSq = (1.+term1)*(1.+term2)
+        
+    return scaleSq
 
-def sigmaFromPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
+def sigmaSqFromModelPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
     
-    #compute scale from physics parameters
+    #compute sigma from physics parameters
     etasC = (etas[:-1] + etas[1:]) / 2.
     
     #rough approximation for now
@@ -290,12 +296,78 @@ def sigmaFromPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
     c2 = c[good_idx[1]]
     d2 = d[good_idx[1]]
 
-    res1 = a1*np.power(l1,2) #+ c1*np.power(l1,4)*np.power(p1,2) #+ b1*np.power(l1,2)/(1+d1/(np.power(p1,2)*np.power(l1,2)))
-    res2 = a2*np.power(l2,2) #+ c2*np.power(l2,4)*np.power(p2,2) #+ b2*np.power(l2,2)/(1+d2/(np.power(p2,2)*np.power(l2,2)))
-
-    sigma = 1./2.*np.sqrt(res1+res2)
+    #res1 = a1*np.power(l1,2) + c1*np.power(l1,4)*np.power(p1,2) + b1*np.power(l1,2)/(1+d1/(np.power(p1,2)*np.power(l1,2)))
+    #res2 = a2*np.power(l2,2) + c2*np.power(l2,4)*np.power(p2,2) + b2*np.power(l2,2)/(1+d2/(np.power(p2,2)*np.power(l2,2)))
     
-    return sigma
+    res1 = a1 + c1*np.power(p1,2) + b1/(1.+d1/(np.power(p1,2)*np.power(l1,2)))
+    res2 = a2 + c2*np.power(p2,2) + b2/(1.+d2/(np.power(p2,2)*np.power(l2,2)))
+
+    sigmaSq = 0.25*(res1+res2)
+    
+    return sigmaSq
+
+def chi2LBins(x, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx):
+    # return the gaussian likelihood (ie 0.5*chi2) from the scales and sigmas squared computed from the
+    # physics model parameters vs the values and covariance matrix from the binned fit
+    
+    x = x.reshape((-1,5))
+    
+    A = x[...,0]
+    e = x[...,1]
+    M = x[...,2]
+    a = x[...,3]
+    c = x[...,4]
+    #b = x[...,5]
+    
+    #c = np.zeros_like(a)
+    b = np.zeros_like(a)
+    d = 370.*np.ones_like(a)
+    
+    #c = -1 + np.sqrt(1.+np.square(1.+c))
+    #b = -1 + np.sqrt(1.+np.square(1.+b))
+    
+    scaleSqModel = scaleSqFromModelPars(A,e,M,etas, binCenters1, binCenters2, good_idx, linearize=False)
+    sigmaSqModel = sigmaSqFromModelPars(a,b,c,d,etas, binCenters1, binCenters2, good_idx)
+    
+    scaleSqSigmaSqModel = np.stack((scaleSqModel,sigmaSqModel), axis=-1)
+    scaleSqSigmaSqBinned = np.stack((binScaleSq,binSigmaSq), axis=-1)
+    
+    diff = scaleSqSigmaSqModel-scaleSqSigmaSqBinned
+    
+    #batched column vectors
+    diffcol = np.expand_dims(diff,-1)
+    
+    #batched row vectors
+    diffcolT = np.expand_dims(diff,-2)
+
+    print("chi2 shapes")
+    print(diffcol.shape, diffcolT.shape, hScaleSqSigmaSq.shape)
+
+    #batched matrix multiplication
+    lbins = 0.5*np.matmul(diffcolT,np.matmul(hScaleSqSigmaSq, diffcol))
+    
+    return np.sum(lbins)
+    
+    #print(chi2bins.shape)
+    
+    #return chi2 
+    
+    
+def chi2SumBins(x, binScaleSq, binSigmaSq, covScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx):
+    chi2Binspartial = functools.partial(chi2Bins, etas=etas, binCenters1=binCenters1, binCenters2=binCenters2,good_idx=good_idx)
+    chi2bins = jax.vmap(chi2Binspartial(x, binScaleSq, binSigmaSq, covScaleSqSigmaSq))
+    chi2 = np.sum(chi2bins)
+    return chi2
+                        
+
+def scaleFromPars(A, e, M, etas, binCenters1, binCenters2, good_idx):
+    scaleSq = scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx, linearize=False)
+    return np.sqrt(scale)
+
+def sigmaFromPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
+    
+    sigmaSq = sigmaSqFromPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx)
+    return np.sqrt(sigmaSq)
 
 def scaleSigmaFromPars(A, e, M, a, b, c, d, etas, binCenters1, binCenters2, good_idx):
 
@@ -303,8 +375,6 @@ def scaleSigmaFromPars(A, e, M, a, b, c, d, etas, binCenters1, binCenters2, good
     sigma = sigmaFromPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx)
     
     return scale,sigma
-
-
 
 def nll(x,nEtaBins,nPtBins,dataset,datasetGen, masses):
 
@@ -396,18 +466,51 @@ def splitTransformPars(x, ndata, nEtaBins, nBins, isJ=True):
     return A,e,M,a,b,c,d,nsig,nbkg,slope
     
 
-def nllBins(x, dataset, datasetGen, masses):
-    
+def scaleSqSigmaSqFromBinsPars(x):
+    scale, sigma = scaleSigmaFromBinPars(x)
+    return np.square(scale), np.square(sigma)
+
+def scaleSigmaFromBinPars(x):
+    #flexible on shape of input array as long as last dimension indexes the parameters within a bin
     scale = x[...,0]
     sigma = x[...,1]
+    
+    #parameter transformation for bounds
+    #(since the bounds are reached only asymptotically, the fit will not converge well
+    #if any of the parameters actually lie outside this region, these are just designed to protect
+    #against pathological phase space during minimization)
+    scale = 1. + 1e-2*np.tanh(scale)
+    sigma = 5e-3*np.exp(2.*np.tanh(sigma))
+    
+    return scale, sigma
+    
+def bkgModelFromBinPars(x):
+    #flexible on shape of input array as long as last dimension indexes the parameters within a bin
     fbkg = x[...,2]
     slope = x[...,3]
     
-    #parameter transforms
-    scale = 1. + 1e-2*np.tanh(scale)
-    sigma = 5e-3*np.exp(4.*np.tanh(sigma))
+    # Transformation with hard bounds like in Minuit
+    # Fit should still behave ok if bound is reached, though uncertainty
+    # associated with this parameter will be underestimated
     fbkg = 0.5*(1.+np.sin(fbkg))
     
+    return fbkg, slope
+    
+def nllBinsFromBinPars(x, dataset, datasetGen, masses):
+    # For fitting with floating signal and background parameters
+    
+    scale, sigma = scaleSigmaFromBinPars(x)
+    fbkg, slope = bkgModelFromBinPars(x)
+    
+    return nllBins(scale, sigma, fbkg, slope, dataset, datasetGen, masses)
+
+def nllBinsFromSignalBinPars(x, fbkg, slope, dataset, datasetGen, masses):
+    # For fitting with fixed background parametters
+    scale, sigma = scaleSigmaFromBinPars(x)
+    
+    return nllBins(scale, sigma, fbkg, slope, dataset, datasetGen, masses)
+
+def nllBins(scale, sigma, fbkg, slope, dataset, datasetGen, masses):
     sigpdf = kernelpdf(scale,sigma, datasetGen, masses)
     bkgpdf = exppdf(slope, masses)
     
@@ -416,6 +519,10 @@ def nllBins(x, dataset, datasetGen, masses):
     pdf = (1.-fbkg_ext)*sigpdf + fbkg_ext*bkgpdf
     
     nll = np.sum(-dataset*np.log(np.where(dataset>0., pdf, 1.)),axis=-1)
+    
+    #constraint on slope to keep fit well behaved when fbkg->0
+    slopesigma = 5.
+    nll += 0.5*np.square(slope)/slopesigma/slopesigma
     return nll
 
 def nllParsSigma(x,nEtaBins,nPtBins,dataset,datasetGen, masses,isJ, etas, binCenters1, binCenters2, good_idx):

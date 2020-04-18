@@ -28,7 +28,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars, plotsParsBkg, scaleFromPars, splitTransformPars, nllBins
+from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars, plotsParsBkg, scaleFromPars, splitTransformPars, nllBinsFromBinPars, chi2LBins, scaleSqSigmaSqFromBinsPars,scaleSqFromModelPars,sigmaSqFromModelPars
 from obsminimization import pmin
 import argparse
 import functools
@@ -166,7 +166,7 @@ isJ = args.isJ
 runCalibration = args.runCalibration
 fitResolution = args.fitResolution
 
-#file = open("calInput{}MC_4etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+#file = open("calInput{}MC_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 file = open("calInput{}DATA_12etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 pkg = pickle.load(file)
 
@@ -178,6 +178,9 @@ binCenters1 = pkg['binCenters1']
 binCenters2 = pkg['binCenters2']
 good_idx = pkg['good_idx']
 
+#print("good_idx shape", good_idx[0].shape)
+#print("dataset shape", dataset.shape)
+
 filegen = open("calInput{}MCgen_12etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 datasetgen = pickle.load(filegen)
 
@@ -186,6 +189,194 @@ nPtBins = len(pts)-1
 nBins = dataset.shape[0]
 
 print(pts)
+
+
+scale = np.ones((nBins,),dtype='float64')
+sigma = 6e-3*np.ones((nBins,),dtype='float64')
+fbkg = 0.05*np.ones((nBins,),dtype='float64')
+slope = 0.02*np.ones((nBins,),dtype='float64')
+
+xscale = np.stack([scale,sigma,fbkg,slope],axis=-1)
+
+xscale = np.zeros_like(xscale)
+
+nllBinspartial = functools.partial(nllBinsFromBinPars, masses=masses)
+
+minbin = 0
+#maxbin = 10
+maxbin = int(5000)
+#maxbins = int(10e3)
+#pmin(nllBinspartial, xscale[minbin:maxbin], args=(dataset[minbin:maxbin],datasetgen[minbin:maxbin]))
+
+#np.set_printoptions(threshold=sys.maxsize)
+#for i in range(4):
+    #print(good_idx[i])
+#assert(0)
+
+
+#parallel fit for scale, sigma, fbkg, slope in bins
+xres = pmin(nllBinspartial, xscale, args=(dataset,datasetgen))
+#xres = xscale
+
+#compute covariance matrices of scale and sigma from binned fit
+def hnll(x,dataset,datasetgen):
+    #compute the hessian wrt internal fit parameters in each bin
+    hess = jax.hessian(nllBinspartial)
+    #invert to get the hessian
+    cov = np.linalg.inv(hess(x,dataset,datasetgen))
+    #compute the jacobian for scale and sigma squared wrt internal fit parameters
+    jacscalesq, jacsigmasq = jax.jacfwd(scaleSqSigmaSqFromBinsPars)(x)
+    jac = np.stack((jacscalesq,jacsigmasq),axis=-1)
+    #compute covariance matrix for scalesq and sigmasq
+    covscalesigmasq = np.matmul(jac.T,np.matmul(cov,jac))
+    #invert again to get the hessian
+    hscalesigmasq = np.linalg.inv(covscalesigmasq)
+    return hscalesigmasq
+fh = jax.jit(jax.vmap(hnll))
+        
+    #vinverse = jax.vmap
+
+hScaleSqSigmaSq = fh(xres,dataset,datasetgen)
+
+
+binScaleSq, binSigmaSq = scaleSqSigmaSqFromBinsPars(xres)
+
+binScale = np.sqrt(binScaleSq)
+binSigma = np.sqrt(binSigmaSq)
+
+
+#np.set_printoptions(threshold=sys.maxsize)
+
+#print(binScale)
+#print(binSigma)
+#assert(0)
+
+#print(covScaleSqSigmaSq)
+#print(covScaleSqSigmaSq.shape)
+
+#assert(0)
+
+nModelParms = 5
+
+#xmodel = np.zeros((nEtaBins,nModelParms),dtype=np.float64)
+
+#A = np.zeros((nEtaBins),dtype=np.float64)
+#e = np.zeros((nEtaBins),dtype=np.float64)
+#M = np.zeros((nEtaBins),dtype=np.float64)
+#a = 1e-2**2*np.ones((nEtaBins),dtype=np.float64)
+
+#xmodel = np.stack((A,e,M,a),axis=-1)
+
+xmodel = np.zeros((nEtaBins,nModelParms),dtype=np.float64)
+
+
+chi2 = chi2LBins(xmodel, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
+
+print(chi2)
+
+#assert(0)
+
+
+#chi2 = jax.jit(chi2SumBins)(xmodel, binScaleSq, binSigmaSq, covScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
+
+#print(chi2)
+
+#chi2LBins
+xmodel = pmin(chi2LBins, xmodel.flatten(), args=(binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx), doParallel=False)
+
+xmodel = xmodel.reshape((-1,nModelParms))
+
+
+fgchi2 = jax.jit(jax.value_and_grad(chi2LBins))
+hchi2 = jax.jit(jax.hessian(chi2LBins))
+
+chi2,chi2grad = fgchi2(xmodel.flatten(), binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
+
+chi2hess = hchi2(xmodel.flatten(), binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
+
+#xmodel = -np.linalg.solve(chi2hess,chi2grad)
+
+hmodel = chi2hess
+covmodel = np.linalg.inv(chi2hess)
+
+valmodel,gradmodel = fgchi2(xmodel.flatten(), binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
+ndof = 2*nBins - nEtaBins*nModelParms
+
+
+print("nEtaBins", nEtaBins)
+print("nBins", nBins)
+print("chi2/dof = %f/%d = %f" % (valmodel,ndof,valmodel/float(ndof)))
+
+#chi2grad = chi2grad.reshape((nEtaBins,nModelParms))
+
+#print(chi2grad)
+#print(etas)
+#assert(0)
+
+#gtest = scaleSqFromModelPars(A,e,M,etas, binCenters1, binCenters2, good_idx, linearize=False)
+#gtest = jax.jacrev(scaleSqFromModelPars)
+
+#gtestval = gtest(A,e,M,etas, binCenters1, binCenters2, good_idx, linearize=False)
+#print(gtestval.shape)
+#print(gtestval)
+
+#print(np.max(gtestval[:,1]), np.min(gtestval[:,1]))
+
+#assert(0)
+
+
+
+xtol = np.sqrt(np.finfo('float64').eps)
+btol = 1.e-8
+#btol = 0.1
+maxiter = 100000
+
+#res = minimize(fgchi2, xmodel.flatten(), args=( binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx),\
+    #method = 'trust-constr',jac = True, hess=hchi2, constraints=[],\
+    #options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
+
+
+#hmodel = hchi2(res.x, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
+#covmodel = np.linalg.inv(hchi2(res.x, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx))
+errsmodel = np.sqrt(np.diag(covmodel)).reshape((nEtaBins,nModelParms))
+
+#np.set_printoptions(threshold=sys.maxsize)
+#xmodel = np.reshape(res.x,(nEtaBins,nModelParms))
+#xmodel = np.reshape(res.x,(nEtaBins,nModelParms))
+
+    
+A = xmodel[...,0]
+e = xmodel[...,1]
+M = xmodel[...,2]
+a = xmodel[...,3]
+#c = x[...,4]
+#b = x[...,5]
+
+c = np.zeros_like(a)
+b = np.zeros_like(a)
+d = 370.*np.ones_like(a)
+
+scalesqmodel = (scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx))
+sigmasqmodel = (sigmaSqFromModelPars(a, b, c, d, etas, binCenters1, binCenters2, good_idx))
+
+print(binScaleSq)
+print(binSigmaSq)
+print(scalesqmodel)
+print(sigmasqmodel)
+#assert(0)
+
+print(np.linalg.eigvalsh(hmodel))
+
+##print(hmodel)
+#print(covmodel)
+
+for i in range(nModelParms):
+    print(i)
+    print(xmodel[:,i])
+    print(errsmodel[:,i])
+
+assert(0)
+
 
 if runCalibration:
     if fitResolution:
@@ -197,6 +388,9 @@ else:
 
 
 print("minimising")
+
+
+
 
 xtol = np.finfo('float64').eps
 btol = 1.e-8
@@ -266,20 +460,6 @@ else:
 #print(tests.shape)
 #assert(0)
 
-scale = np.ones((nBins,),dtype='float64')
-sigma = 6e-3*np.ones((nBins,),dtype='float64')
-fbkg = 0.05*np.ones((nBins,),dtype='float64')
-slope = 0.02*np.ones((nBins,),dtype='float64')
-
-xscale = np.stack([scale,sigma,fbkg,slope],axis=-1)
-
-xscale = np.zeros_like(xscale)
-
-nllBinspartial = functools.partial(nllBins, masses=masses)
-
-pmin(nllBinspartial, xscale, args=(dataset,datasetgen))
-
-assert(0)
 
 h = jax.jit(jax.vmap(jax.hessian(nllBinspartial)))
 ve = jax.vmap(np.linalg.eigh)
