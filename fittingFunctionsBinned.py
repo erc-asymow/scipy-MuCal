@@ -310,21 +310,7 @@ def chi2LBins(x, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, bin
     # return the gaussian likelihood (ie 0.5*chi2) from the scales and sigmas squared computed from the
     # physics model parameters vs the values and covariance matrix from the binned fit
     
-    x = x.reshape((-1,5))
-    
-    A = x[...,0]
-    e = x[...,1]
-    M = x[...,2]
-    a = x[...,3]
-    c = x[...,4]
-    #b = x[...,5]
-    
-    #c = np.zeros_like(a)
-    b = np.zeros_like(a)
-    d = 370.*np.ones_like(a)
-    
-    #c = -1 + np.sqrt(1.+np.square(1.+c))
-    #b = -1 + np.sqrt(1.+np.square(1.+b))
+    A,e,M,a,b,c,d = modelParsFromParVector(x)
     
     scaleSqModel = scaleSqFromModelPars(A,e,M,etas, binCenters1, binCenters2, good_idx, linearize=False)
     sigmaSqModel = sigmaSqFromModelPars(a,b,c,d,etas, binCenters1, binCenters2, good_idx)
@@ -360,19 +346,39 @@ def chi2SumBins(x, binScaleSq, binSigmaSq, covScaleSqSigmaSq, etas, binCenters1,
     return chi2
                         
 
-def scaleFromPars(A, e, M, etas, binCenters1, binCenters2, good_idx):
-    scaleSq = scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx, linearize=False)
-    return np.sqrt(scale)
-
-def sigmaFromPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
+def modelParsFromParVector(x):
+    x = x.reshape((-1,5))
     
-    sigmaSq = sigmaSqFromPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx)
+    A = x[...,0]
+    e = x[...,1]
+    M = x[...,2]
+    a = x[...,3]
+    c = x[...,4]
+    #b = x[...,5]
+    
+    #c = np.zeros_like(a)
+    b = np.zeros_like(a)
+    d = 370.*np.ones_like(a)
+    
+    return A,e,M,a,b,c,d
+
+def scaleSigmaFromModelParVector(x, etas, binCenters1, binCenters2, good_idx):
+    A,e,M,a,b,c,d = modelParsFromParVector(x)
+    return scaleSigmaFromPars(A, e, M, a, b, c, d, etas, binCenters1, binCenters2, good_idx)
+
+def scaleFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx):
+    scaleSq = scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx, linearize=False)
+    return np.sqrt(scaleSq)
+
+def sigmaFromModelPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
+    
+    sigmaSq = sigmaSqFromModelPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx)
     return np.sqrt(sigmaSq)
 
 def scaleSigmaFromPars(A, e, M, a, b, c, d, etas, binCenters1, binCenters2, good_idx):
 
-    scale = scaleFromPars(A,e,M,etas, binCenters1, binCenters2, good_idx)
-    sigma = sigmaFromPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx)
+    scale = scaleFromModelPars(A,e,M,etas, binCenters1, binCenters2, good_idx)
+    sigma = sigmaFromModelPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx)
     
     return scale,sigma
 
@@ -618,13 +624,9 @@ def plots(x,nEtaBins,nPtBins,dataset,datasetGen,masses,isJ, good_idx):
 
 #TODO this function needs to be updated to the new binning scheme
 def plotsbkg(x,nEtaBins,nPtBins,dataset,datasetGen,masses, isJ):
-
-    if isJ:
-        maxR = 3.3
-        minR = 2.9
-    else:
-        maxR = 75.
-        minR = 115.
+        
+    maxR = masses[-1]
+    minR = masses[0]
 
     sep = np.power(nEtaBins,2)*np.power(nPtBins,2)
     
@@ -677,6 +679,68 @@ def plotsbkg(x,nEtaBins,nPtBins,dataset,datasetGen,masses, isJ):
                     plt.xlim(minR, maxR)  
 
                     plt.savefig('PLOTS{}DATA/plot_{}{}{}{}.pdf'.format('J' if isJ else 'Z',ieta1,ieta2,ipt1,ipt2))
+
+
+def plotsBkg(scale,sigma,fbkg,slope,dataset,datasetGen,masses,isJ,etas, binCenters1, binCenters2, good_idx):
+
+
+    nBins = dataset.shape[0]
+    ndata = np.sum(dataset,axis=-1)    
+    minR = masses[0]
+    maxR = masses[-1]
+    massWidth = masses[1:]-masses[:-1]
+    massWidth = massWidth[np.newaxis,:]
+    
+    masseslow = masses[:-1]
+    
+    nsig = (1.-fbkg)*ndata
+    nbkg = fbkg*ndata
+    
+    sigpdf = nsig[:,np.newaxis]*massWidth*kernelpdf(scale, sigma, datasetGen, masses)
+    bkgpdf = nbkg[:,np.newaxis]*massWidth*exppdf(slope,masses)
+
+    pdf = sigpdf+bkgpdf
+
+
+    #for ibin in range(nBins):
+    for ibin in range(0,nBins,10):
+        ieta1 = good_idx[0][ibin]
+        ieta2 = good_idx[1][ibin]
+        ipt1 = good_idx[2][ibin]
+        ipt2 = good_idx[3][ibin]        
+        
+        scale_bin = scale[ibin]
+        sigma_bin = sigma[ibin]
+        fbkg_bin = fbkg[ibin]
+        slope_bin = slope[ibin]
+        n_true_bin = ndata[ibin]
+
+        plt.clf()
+        
+        fig, (ax1, ax2) = plt.subplots(nrows=2)
+        ax1.errorbar(masseslow, dataset[ibin,:], yerr=np.sqrt(dataset[ibin,:]), fmt='.')
+        ax1.set_ylabel('number of events')
+        ax1.text(0.95, 0.95, 'scale: {:.5f}\n sigma: {:.3f}\n fbkg: {:.3f}\n slope: {:.3f}\n ntrue: {:.0f}'\
+                        .format(scale_bin,sigma_bin,fbkg_bin,slope_bin,n_true_bin),
+        verticalalignment='top', horizontalalignment='right',
+        transform=ax1.transAxes,
+        color='black', fontsize=10)
+        ax1.set_xlim([minR, maxR])
+        
+        ax1.plot(masseslow, pdf[ibin,:])
+        ax1.plot(masseslow, bkgpdf[ibin,:], ls='--')
+                
+        ax2.errorbar(masseslow,dataset[ibin,:]/pdf[ibin,:],yerr=np.sqrt(dataset[ibin,:])/pdf[ibin,:], fmt='.')
+        ax2.set_xlabel('dimuon mass')
+        ax2.set_ylabel('ratio data/pdf')
+        
+        ax2.set_xlim([minR, maxR])
+        ax2.set_ylim([0., 2.5])
+
+
+        plt.savefig('PLOTS{}MCCorr/plot_{}{}{}{}.png'.format('J' if isJ else 'Z',ieta1,ieta2,ipt1,ipt2))
+        plt.close(fig)
+
 
 def plotsParsBkg(x,nEtaBins,nPtBins,dataset,datasetGen,masses,isJ,etas, binCenters1, binCenters2, good_idx):
 

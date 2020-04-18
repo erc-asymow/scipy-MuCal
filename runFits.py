@@ -28,7 +28,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars, plotsParsBkg, scaleFromPars, splitTransformPars, nllBinsFromBinPars, chi2LBins, scaleSqSigmaSqFromBinsPars,scaleSqFromModelPars,sigmaSqFromModelPars
+from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars, plotsParsBkg, scaleFromModelPars, splitTransformPars, nllBinsFromBinPars, chi2LBins, scaleSqSigmaSqFromBinsPars,scaleSqFromModelPars,sigmaSqFromModelPars,modelParsFromParVector,scaleSigmaFromModelParVector, plotsBkg, bkgModelFromBinPars
 from obsminimization import pmin
 import argparse
 import functools
@@ -167,7 +167,7 @@ runCalibration = args.runCalibration
 fitResolution = args.fitResolution
 
 #file = open("calInput{}MC_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
-file = open("calInput{}DATA_12etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+file = open("calInput{}DATA_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 pkg = pickle.load(file)
 
 dataset = pkg['dataset']
@@ -181,7 +181,7 @@ good_idx = pkg['good_idx']
 #print("good_idx shape", good_idx[0].shape)
 #print("dataset shape", dataset.shape)
 
-filegen = open("calInput{}MCgen_12etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+filegen = open("calInput{}MCgen_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 datasetgen = pickle.load(filegen)
 
 nEtaBins = len(etas)-1
@@ -231,19 +231,32 @@ def hnll(x,dataset,datasetgen):
     covscalesigmasq = np.matmul(jac.T,np.matmul(cov,jac))
     #invert again to get the hessian
     hscalesigmasq = np.linalg.inv(covscalesigmasq)
-    return hscalesigmasq
+    return hscalesigmasq, covscalesigmasq
 fh = jax.jit(jax.vmap(hnll))
         
     #vinverse = jax.vmap
 
-hScaleSqSigmaSq = fh(xres,dataset,datasetgen)
+hScaleSqSigmaSqBinned, hCovScaleSqSigmaSqBinned = fh(xres,dataset,datasetgen)
+
+fbkg, slope = bkgModelFromBinPars(xres)
 
 
-binScaleSq, binSigmaSq = scaleSqSigmaSqFromBinsPars(xres)
+scaleSqBinned, sigmaSqBinned = scaleSqSigmaSqFromBinsPars(xres)
 
-binScale = np.sqrt(binScaleSq)
-binSigma = np.sqrt(binSigmaSq)
+scaleBinned = np.sqrt(scaleSqBinned)
+sigmaBinned = np.sqrt(sigmaSqBinned)
 
+scaleSqSigmaSqErrorsBinned = np.sqrt(np.diagonal(hCovScaleSqSigmaSqBinned, axis1=-1, axis2=-2))
+
+scaleSqErrorBinned = scaleSqSigmaSqErrorsBinned[:,0]
+sigmaSqErrorBinned = scaleSqSigmaSqErrorsBinned[:,1]
+
+scaleErrorBinned = 0.5*scaleSqErrorBinned/scaleBinned
+sigmaErrorBinned = 0.5*sigmaSqErrorBinned/sigmaBinned
+
+
+
+#scaleSigmaErrorBinned = 0.5*
 
 #np.set_printoptions(threshold=sys.maxsize)
 
@@ -270,7 +283,7 @@ nModelParms = 5
 xmodel = np.zeros((nEtaBins,nModelParms),dtype=np.float64)
 
 
-chi2 = chi2LBins(xmodel, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
+chi2 = chi2LBins(xmodel, scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx)
 
 print(chi2)
 
@@ -282,7 +295,7 @@ print(chi2)
 #print(chi2)
 
 #chi2LBins
-xmodel = pmin(chi2LBins, xmodel.flatten(), args=(binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx), doParallel=False)
+xmodel = pmin(chi2LBins, xmodel.flatten(), args=(scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx), doParallel=False)
 
 xmodel = xmodel.reshape((-1,nModelParms))
 
@@ -290,17 +303,20 @@ xmodel = xmodel.reshape((-1,nModelParms))
 fgchi2 = jax.jit(jax.value_and_grad(chi2LBins))
 hchi2 = jax.jit(jax.hessian(chi2LBins))
 
-chi2,chi2grad = fgchi2(xmodel.flatten(), binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
+chi2,chi2grad = fgchi2(xmodel.flatten(), scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx)
 
-chi2hess = hchi2(xmodel.flatten(), binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
+chi2hess = hchi2(xmodel.flatten(), scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx)
 
 #xmodel = -np.linalg.solve(chi2hess,chi2grad)
 
 hmodel = chi2hess
 covmodel = np.linalg.inv(chi2hess)
+invhess = covmodel
 
-valmodel,gradmodel = fgchi2(xmodel.flatten(), binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
+valmodel,gradmodel = fgchi2(xmodel.flatten(), scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx)
 ndof = 2*nBins - nEtaBins*nModelParms
+
+edm = 0.5*np.matmul(np.matmul(gradmodel.T,covmodel),gradmodel)
 
 
 print("nEtaBins", nEtaBins)
@@ -324,18 +340,6 @@ print("chi2/dof = %f/%d = %f" % (valmodel,ndof,valmodel/float(ndof)))
 
 #assert(0)
 
-
-
-xtol = np.sqrt(np.finfo('float64').eps)
-btol = 1.e-8
-#btol = 0.1
-maxiter = 100000
-
-#res = minimize(fgchi2, xmodel.flatten(), args=( binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx),\
-    #method = 'trust-constr',jac = True, hess=hchi2, constraints=[],\
-    #options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
-
-
 #hmodel = hchi2(res.x, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
 #covmodel = np.linalg.inv(hchi2(res.x, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx))
 errsmodel = np.sqrt(np.diag(covmodel)).reshape((nEtaBins,nModelParms))
@@ -345,324 +349,44 @@ errsmodel = np.sqrt(np.diag(covmodel)).reshape((nEtaBins,nModelParms))
 #xmodel = np.reshape(res.x,(nEtaBins,nModelParms))
 
     
-A = xmodel[...,0]
-e = xmodel[...,1]
-M = xmodel[...,2]
-a = xmodel[...,3]
-#c = x[...,4]
-#b = x[...,5]
+#A = xmodel[...,0]
+#e = xmodel[...,1]
+#M = xmodel[...,2]
+#a = xmodel[...,3]
+##c = x[...,4]
+##b = x[...,5]
 
-c = np.zeros_like(a)
-b = np.zeros_like(a)
-d = 370.*np.ones_like(a)
+#c = np.zeros_like(a)
+#b = np.zeros_like(a)
+#d = 370.*np.ones_like(a)
 
-scalesqmodel = (scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx))
-sigmasqmodel = (sigmaSqFromModelPars(a, b, c, d, etas, binCenters1, binCenters2, good_idx))
+A,e,M,a,b,c,d = modelParsFromParVector(xmodel)
 
-print(binScaleSq)
-print(binSigmaSq)
-print(scalesqmodel)
-print(sigmasqmodel)
+scaleSqModel = scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx)
+sigmaSqModel = sigmaSqFromModelPars(a, b, c, d, etas, binCenters1, binCenters2, good_idx)
+
+scaleModel = np.sqrt(scaleSqModel)
+sigmaModel = np.sqrt(sigmaSqModel)
+
+#print(binScaleSq)
+#print(binSigmaSq)
+#print(scalesqmodel)
+#print(sigmasqmodel)
 #assert(0)
 
-print(np.linalg.eigvalsh(hmodel))
+#print(np.linalg.eigvalsh(hmodel))
 
 ##print(hmodel)
 #print(covmodel)
 
-for i in range(nModelParms):
-    print(i)
-    print(xmodel[:,i])
-    print(errsmodel[:,i])
-
-assert(0)
-
-
-if runCalibration:
-    if fitResolution:
-        x = defineStateParsSigma(nEtaBins,nPtBins, dataset, isJ)
-    else:
-        x = defineStatePars(nEtaBins,nPtBins, dataset, isJ)
-else:
-    x = defineState(nEtaBins,nPtBins, dataset)
-
-
-print("minimising")
-
-
-
-
-xtol = np.finfo('float64').eps
-btol = 1.e-8
-#btol = 0.1
-maxiter = 100000
-#maxiter = 2
-
-if runCalibration:
-    lb_scale = np.concatenate((-0.01*np.ones(nEtaBins),-0.01*np.ones(nEtaBins), -1e-2*np.ones(nEtaBins)),axis=0)
-    ub_scale = np.concatenate((0.01*np.ones(nEtaBins),0.01*np.ones(nEtaBins), 1e-2*np.ones(nEtaBins)),axis=0)
-
-    if fitResolution:
-        #lb_sigma = np.concatenate((np.zeros(nEtaBins),np.zeros(nEtaBins),np.zeros(nEtaBins),np.zeros(nEtaBins)), axis =0)
-        #ub_sigma = np.concatenate((1.e-3*np.ones(nEtaBins),1.e-3*np.ones(nEtaBins),1.e-4*np.ones(nEtaBins),100000.*np.ones(nEtaBins)), axis =0)
-        #lb_sigma = np.zeros(nEtaBins)
-        lb_sigma = 1.e-6*np.ones(nEtaBins)
-        ub_sigma = 1.e-3*np.ones(nEtaBins)
-    else:
-        lb_sigma = np.full((nBins),-np.inf)
-        ub_sigma = np.full((nBins),np.inf)
-else:   
-    lb_scale = np.full((nBins),0.95)
-    ub_scale = np.full((nBins),1.05)
-
-    lb_sigma = np.full((nBins),-np.inf)
-    ub_sigma = np.full((nBins),np.inf)
-
-
-lb_nsig = np.full((nBins),-np.inf)
-ub_nsig = np.full((nBins),np.inf)
-
-lb_nbkg = np.full((nBins),-np.inf)
-ub_nbkg = np.full((nBins),np.inf)
-
-#lb = np.concatenate((lb_scale,lb_sigma,lb_nsig),axis=0)
-#ub = np.concatenate((ub_scale,ub_sigma,ub_nsig),axis=0)
-
-lb = np.concatenate((lb_scale,lb_sigma,lb_nsig,lb_nbkg),axis=0)
-ub = np.concatenate((ub_scale,ub_sigma,ub_nsig,ub_nbkg),axis=0)
-
-bounds = []
-for l,u in zip(lb,ub):
-    bounds.append((l,u))
-
-#constraints = LinearConstraint( A=np.eye(x.shape[0]), lb=lb, ub=ub,keep_feasible=True )
-constraints = []
-
-if runCalibration:
-    if fitResolution:
-        fnll = nllParsSigma
-    else:
-        fnll = nllPars
-    #convert fnll to single parameter function fnllx(x)
-    fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, isJ=isJ, etas=etas, masses=masses, binCenters1=binCenters1, binCenters2=binCenters2, good_idx=good_idx)
-else:
-    fnll = nll
-    #convert fnll to single parameter function fnllx(x)
-    fnllx = functools.partial(fnll, nEtaBins=nEtaBins, nPtBins=nPtBins, dataset=dataset, datasetGen=datasetgen, masses=masses)
-
-
-
-#def vgrad(fun):
-    #g = jax.grad(fun)
-    #return jax.vmap(g)
-
-#tests = np.array(5.)
-#print(tests.shape)
-#assert(0)
-
-
-h = jax.jit(jax.vmap(jax.hessian(nllBinspartial)))
-ve = jax.vmap(np.linalg.eigh)
-ve = jax.jit(ve)
-e,u = ve(h(xscale,dataset,datasetgen))
-mineig = np.min(e)
-print(mineig)
-#assert(0)
-
-gcache = CachingBlockGrads(nllBinspartial,nBins, static_argnums=(1,2))
-
-f,g = gcache.fgrad(xscale,dataset,datasetgen)
-
-print(f)
-print(g)
-#assert(0)
-
-handler = NLLHandler(gcache.fgrad)
-
-res = minimize(handler.wrapper, xscale.flatten(), args=(dataset, datasetgen), callback=handler.callback,\
-    method = 'trust-krylov',jac = True, hessp=gcache.hvp,\
-    options={'verbose':3,'disp':False,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
-
-
-
-#res = minimize(gcache.fgrad, xscale.flatten(), args=(dataset, datasetgen),\
-    #method = 'trust-constr',jac = True, hess=SR1(), constraints=[],\
-    #options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
-
-#res = minimize(handler.wrapper, xscale.flatten(),args=(dataset, datasetgen),\
-    #method = 'bfgs',jac = True, hess=None,callback=handler.callback,\
-    #options={'verbose':9,'disp':9,'maxiter' : maxiter, 'gtol' : 1e-16, 'xtol' : xtol, 'barrier_tol' : btol})
-
-np.set_printoptions(threshold=sys.maxsize)
-print(res.x)
-
-assert(0)
-
-gbins = jax.grad(nllBinspartial, argnums=(0))
-vgbins = jax.vmap(gbins)
-vgbins = jax.jit(vgbins,static_argnums=(1,2))
-
-hbins = jax.hessian(nllBinspartial, argnums=0)
-vhbins = jax.vmap(hbins)
-vhbins = jax.jit(vhbins,static_argnums=(1,2))
-
-ve = jax.vmap(np.linalg.eigh)
-
-#gbins = jax.jit(gbins)
-
-#vgbins = jax.jit(vgbins)
-
-
-
-
-def nllsum(xscale):
-    return np.sum(nllBins(xscale, dataset, datasetgen, masses))
-
-gnsum = jax.jit(jax.grad(nllsum))
-hnsum = hessianlowmem(nllsum)
-
-
-vgnllbins = vgbins(xscale,dataset,datasetgen)
-#gnllbins = gbins(scale,sigma,fbkg,slope,dataset,datasetgen)
-gnllbinssum = gnsum(scale)
-
-vhnllbins = vhbins(xscale,dataset,datasetgen)
-
-e,u = ve(vhnllbins)
-print(e.shape)
-print(e)
-print(np.min(e))
-
-assert(0)
-
-print(vhnllbins.shape)
-print(vhnllbins)
-#print(len(vhnllbins))
-#print(vhnllbins[0])
-#print(len(vhnllbins[0]))
-#print(vhnllbins[0][0])
-
-def benchmark(fun, number=100):
-    #with jax.disable_jit():
-    t0 = time.time()
-    for i in range(number):
-        #xr = xscale + 1e-6*onp.random.standard_normal()
-        res = fun()
-        print(res.flatten()[0])
-    t = time.time() - t0
-    print(t,number)
-    return t/number
+#for i in range(nModelParms):
+    #print(i)
+    #print(xmodel[:,i])
+    #print(errsmodel[:,i])
 
 #assert(0)
 
-#print(vgnllbins.shape)
-#print(vgnllbins)
-#print(gnllbinssum.shape)
-#print(gnllbinssum)
-
-resv = benchmark(lambda: vgbins(xscale,dataset,datasetgen), number=10)
-ressum = benchmark(lambda: gnsum(xscale), number=10)
-resvh = benchmark(lambda: vhbins(xscale,dataset,datasetgen), number=10)
-resh = benchmark(lambda: hnsum(xscale), number=1)
-
-#resv = benchmark(vgbins, number=10)
-#resvh = benchmark(vhbins, number=10)
-
-#print(resv, resvh)
-print(resv,ressum, resvh)
-
-
-#vgradnll = jax.jit(vgrad(fnllx))
-
-#print(vgradnll(x))
-
-assert(0)
-
-
-fgradnll = jax.jit(jax.value_and_grad(fnllx))
-#fgradnll = jax.value_and_grad(fnllx)
-
-#def fgradwrapper(x):
-    
-
-def fgradnlldebug(x):
-    #print(x)
-    f,grad = fgradnll(x)
-    print(f)
-    if np.isnan(f) or np.any(np.isnan(grad)):
-        print("nan detected")
-        print(x)
-        print(f)
-        print(grad)
-        
-        fnllx(x)
-        assert(0)
-        
-    return f,grad
-
-hessnll = hessianlowmem(fnllx)
-hesspnll = jax.jit(hvp(fnllx))
-
-#FIXME
-#this seems to actually work properly on gpu, but tries to allocate too much memory on cpu for some reason
-#hessnll = jax.jit(hessian(fnllx))
-
-
-
-
-
-#res = minimize(fgradnlldebug, x,\
-    #method = 'trust-constr',jac = True, hess=SR1(),constraints=constraints,\
-    #options={'verbose':3,'disp':True,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
-
-
-        
-handler = NLLHandler(fgradnll, fnllx)
-
-hvpcache = CachingHVP(fnllx)
-
-res = minimize(handler.wrapper, x, callback=handler.callback,\
-    method = 'trust-krylov',jac = True, hessp=hvpcache.hvp,\
-    options={'verbose':3,'disp':False,'maxiter' : maxiter, 'gtol' : 0., 'xtol' : xtol, 'barrier_tol' : btol})
-
-#xi = x
-#for i in range(3):
-    #res = minimize(handler.wrapper, xi,\
-        #method = 'bfgs',jac = True, hess=None,callback=handler.callback,\
-        #options={'verbose':9,'disp':9,'maxiter' : maxiter, 'gtol' : 1e-16, 'xtol' : xtol, 'barrier_tol' : btol})
-    #xi = res.x
-
-
-#res = minimize(fgradnlldebug, x,\
-    #method = 'L-BFGS-B',jac = True, hess=None,\
-    #options={'verbose':9,'disp':9,'maxiter' : maxiter, 'gtol' : 1e-16, 'xtol' : xtol, 'barrier_tol' : btol})
-
-
-print(res)
-
-
-fitres = res.x
-
-val,gradient = fgradnll(res.x)
-gradfinal = gradient
-
-print(val)
-print(gradient)
-
-#print gradient, "gradient"
-
-hessian = hessnll(res.x)
-#hessian = np.eye(x.shape[0])
-
-hessfinal = hessian
-
-#print np.linalg.eigvals(hessfinal), "eigenvalues"
-
-invhess = np.linalg.inv(hessfinal)
-
-edm = 0.5*np.matmul(np.matmul(gradfinal.T,invhess),gradfinal)
-
-print(fitres, "+/-", np.sqrt(np.diag(invhess)))
+print(xmodel, "+/-", errsmodel)
 print(edm, "edm")
 
 #errs = np.sqrt(np.diag(invhess))
@@ -673,15 +397,14 @@ print(edm, "edm")
 #for gid in good_idx:
     #print(gid[binidx])
 
-slope = res.x[4*nEtaBins+2*nBins:]
-print(np.min(slope),np.max(slope), np.mean(slope))
+
 
 diag = np.diag(np.sqrt(np.diag(invhess)))
 diag = np.linalg.inv(diag)
 corr = np.dot(diag,invhess).dot(diag)
 
 #only for model parameters
-corr = corr[:4*nEtaBins,:4*nEtaBins]
+#corr = corr[:4*nEtaBins,:4*nEtaBins]
 
 import matplotlib
 matplotlib.use('agg')
@@ -692,102 +415,93 @@ plt.pcolor(corr, cmap='jet', vmin=-1, vmax=1)
 plt.colorbar()
 plt.savefig("corrMC.pdf")
 
-def scaleFromAeM(xAeM, etas, binCenters1, binCenters2, good_idx):
 
-    #TODO move this to common code as well
-    A = 0.01*np.tanh(xAeM[:nEtaBins])
-    e = 0.01*np.tanh(xAeM[nEtaBins:2*nEtaBins])
-    M = 0.01*np.tanh(xAeM[2*nEtaBins:3*nEtaBins])
-    
-    scale = scaleFromPars(A, e, M, etas, binCenters1, binCenters2, good_idx)
 
-    return scale
+#plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ,etas, binCenters1, binCenters2, good_idx)
 
-if runCalibration:
-    #plotsPars(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ,etas, binCenters1, binCenters2, good_idx)
-    
-    plotsParsBkg(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ,etas, binCenters1, binCenters2, good_idx)
+#plotsParsBkg(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ,etas, binCenters1, binCenters2, good_idx)
 
-    print("computing scales and errors:")
-    
-    ndata = np.sum(dataset,axis=-1)
-    A,e,M,a,b,c,d,nsig,nbkg,slope = splitTransformPars(res.x, ndata, nEtaBins, nBins, isJ)
+plotsBkg(scaleBinned,sigmaBinned,fbkg,slope,dataset,datasetgen,masses,isJ,etas, binCenters1, binCenters2, good_idx)
 
-    hA = ROOT.TH1D("A", "A", nEtaBins, onp.array(etas.tolist()))
-    he = ROOT.TH1D("e", "e", nEtaBins, onp.array(etas.tolist()))
-    hM = ROOT.TH1D("M", "M", nEtaBins, onp.array(etas.tolist()))
+print("computing scales and errors:")
 
-    hA = array2hist(A, hA, np.sqrt(np.diag(invhess)[:nEtaBins]))
-    he = array2hist(e, he, np.sqrt(np.diag(invhess)[nEtaBins:2*nEtaBins]))
-    hM = array2hist(M, hM, np.sqrt(np.diag(invhess)[2*nEtaBins:3*nEtaBins]))
+ndata = np.sum(dataset,axis=-1)
 
-    hA.GetYaxis().SetTitle('b field correction')
-    he.GetYaxis().SetTitle('material correction')
-    hM.GetYaxis().SetTitle('alignment correction')
 
-    hA.GetXaxis().SetTitle('#eta')
-    he.GetXaxis().SetTitle('#eta')
-    hM.GetXaxis().SetTitle('#eta')
 
-    if fitResolution:
-        a = res.x[3*nEtaBins:4*nEtaBins]
-        ha = ROOT.TH1D("a", "a", nEtaBins, onp.array(etas.tolist()))
-        ha = array2hist(a, ha, np.sqrt(np.diag(invhess)[3*nEtaBins:4*nEtaBins]))
-        ha.GetYaxis().SetTitle('material correction')
-        ha.GetXaxis().SetTitle('#eta')
-    
-    xAeM = res.x[:3*nEtaBins]
-    scale = scaleFromAeM(xAeM, etas, binCenters1, binCenters2, good_idx)
-    
-    jacobianscale = jax.jit(jax.jacfwd(scaleFromAeM))
-    jac = jacobianscale(xAeM,etas, binCenters1, binCenters2, good_idx)
-    invhessAeM = invhess[:3*nEtaBins,:3*nEtaBins]
-    scale_invhess = np.matmul(np.matmul(jac,invhessAeM),jac.T)
-    scale_err = np.sqrt(np.diag(scale_invhess))
-    print("computed scales error, now plotting...")
-    
-    #have to use original numpy to construct the bin edges because for some reason this doesn't work with the arrays returned by jax
-    scaleplot = ROOT.TH1D("scale", "scale", nBins, onp.linspace(0, nBins, nBins+1))
-    scaleplot = array2hist(scale, scaleplot, scale_err)
+Aerr = errsmodel[:,0]
+eerr = errsmodel[:,1]
+Merr = errsmodel[:,2]
+aerr = errsmodel[:,3]
+cerr = errsmodel[:,4]
 
-    for ibin in range(nBins):
-        ieta1 = good_idx[0][ibin]
-        ieta2 = good_idx[1][ibin]
-        ipt1 = good_idx[2][ibin]
-        ipt2 = good_idx[3][ibin]
-        scaleplot.GetXaxis().SetBinLabel(ibin+1,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
+etaarr = onp.array(etas.tolist())
+hA = ROOT.TH1D("A", "A", nEtaBins, etaarr)
+he = ROOT.TH1D("e", "e", nEtaBins, etaarr)
+hM = ROOT.TH1D("M", "M", nEtaBins, etaarr)
+ha = ROOT.TH1D("a", "a", nEtaBins, etaarr)
+hc = ROOT.TH1D("c", "c", nEtaBins, etaarr)
 
-    scaleplot.GetXaxis().LabelsOption("v")
+hA = array2hist(A, hA, Aerr)
+he = array2hist(e, he, eerr)
+hM = array2hist(M, hM, Merr)
+ha = array2hist(a, ha, aerr)
+hc = array2hist(c, hc, cerr)
 
-    f = ROOT.TFile("calibrationMC.root", 'recreate')
-    f.cd()
+hA.GetYaxis().SetTitle('b field correction')
+he.GetYaxis().SetTitle('material correction')
+hM.GetYaxis().SetTitle('alignment correction')
+ha.GetYaxis().SetTitle('material correction (resolution) a^2')
+hc.GetYaxis().SetTitle('hit position (resolution) c^2')
 
-    hA.Write()
-    he.Write()
-    hM.Write()
-    if fitResolution:
-        ha.Write()
-    scaleplot.Write()
+hA.GetXaxis().SetTitle('#eta')
+he.GetXaxis().SetTitle('#eta')
+hM.GetXaxis().SetTitle('#eta')
+ha.GetXaxis().SetTitle('#eta')
+hc.GetXaxis().SetTitle('#eta')
 
-else:
-    print("plotting...")
-    plots(res.x,nEtaBins,nPtBins,dataset,datasetgen,masses,isJ,good_idx)
+scalejac,sigmajac = jax.jit(jax.jacfwd(scaleSigmaFromModelParVector))(xmodel.flatten(),etas, binCenters1, binCenters2, good_idx)
+scalesigmajac = np.stack((scalejac,sigmajac),axis=1)
+scalesigmajac = np.reshape(scalesigmajac, (-1,covmodel.shape[0]))
+covScaleSigmaModel = np.matmul(scalesigmajac,np.matmul(covmodel,scalesigmajac.T))
+scaleSigmaErrsModel = np.sqrt(np.diag(covScaleSigmaModel))
+scaleSigmaErrsModel = np.reshape(scaleSigmaErrsModel, (-1,2))
 
-    f = ROOT.TFile("scaleMC.root", 'recreate')
-    f.cd()
+#have to use original numpy to construct the bin edges because for some reason this doesn't work with the arrays returned by jax
+scaleplotBinned = ROOT.TH1D("scaleBinned", "scale", nBins, onp.linspace(0, nBins, nBins+1))
+scaleplotBinned = array2hist(scaleBinned, scaleplotBinned, scaleErrorBinned)
 
-    scaleplot = ROOT.TH1D("scale", "scale", nBins, onp.linspace(0, nBins, nBins+1))
-    scaleplot.GetYaxis().SetTitle('scale')
+print(scaleModel.shape, scaleSigmaErrsModel[:,0].shape)
+scaleplotModel = ROOT.TH1D("scaleModel", "scale", nBins, onp.linspace(0, nBins, nBins+1))
+scaleplotModel = array2hist(scaleModel, scaleplotModel, scaleSigmaErrsModel[:,0])
 
-    scaleplot = array2hist(fitres[:nBins], scaleplot, np.sqrt(np.diag(invhess)[:nBins]))
+sigmaplotBinned = ROOT.TH1D("sigmaBinned", "sigma", nBins, onp.linspace(0, nBins, nBins+1))
+sigmaplotBinned = array2hist(sigmaBinned, sigmaplotBinned, sigmaErrorBinned)
 
-    for ibin in range(nBins):
-        ieta1 = good_idx[0][ibin]
-        ieta2 = good_idx[1][ibin]
-        ipt1 = good_idx[2][ibin]
-        ipt2 = good_idx[3][ibin]
-        scaleplot.GetXaxis().SetBinLabel(ibin+1,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
+sigmaplotModel = ROOT.TH1D("sigmaModel", "sigma", nBins, onp.linspace(0, nBins, nBins+1))
+sigmaplotModel = array2hist(sigmaModel, sigmaplotModel, scaleSigmaErrsModel[:,1])
 
-    scaleplot.GetXaxis().LabelsOption("v")
-    scaleplot.Write()
+plots = [scaleplotBinned,scaleplotModel, sigmaplotBinned, sigmaplotModel]
+
+for ibin in range(nBins):
+    ieta1 = good_idx[0][ibin]
+    ieta2 = good_idx[1][ibin]
+    ipt1 = good_idx[2][ibin]
+    ipt2 = good_idx[3][ibin]
+    for plot in plots:
+        plot.GetXaxis().SetBinLabel(ibin+1,'eta1_{}_eta2_{}_pt1_{}_pt2_{}'.format(ieta1,ieta2,ipt1,ipt2))
+
+for plot in plots:
+    plot.GetXaxis().LabelsOption("v")
+
+f = ROOT.TFile("calibrationMC.root", 'recreate')
+f.cd()
+
+hA.Write()
+he.Write()
+hM.Write()
+ha.Write()
+hc.Write()
+for plot in plots:
+    plot.Write()
 
