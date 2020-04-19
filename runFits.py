@@ -166,8 +166,8 @@ isJ = args.isJ
 runCalibration = args.runCalibration
 fitResolution = args.fitResolution
 
-#file = open("calInput{}MC_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
-file = open("calInput{}DATA_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+file = open("calInput{}MC_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+#file = open("calInput{}DATA_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 pkg = pickle.load(file)
 
 dataset = pkg['dataset']
@@ -318,10 +318,11 @@ ndof = 2*nBins - nEtaBins*nModelParms
 
 edm = 0.5*np.matmul(np.matmul(gradmodel.T,covmodel),gradmodel)
 
+chi2val = 2.*valmodel
 
 print("nEtaBins", nEtaBins)
 print("nBins", nBins)
-print("chi2/dof = %f/%d = %f" % (valmodel,ndof,valmodel/float(ndof)))
+print("chi2/dof = %f/%d = %f" % (chi2val,ndof,chi2val/float(ndof)))
 
 #chi2grad = chi2grad.reshape((nEtaBins,nModelParms))
 
