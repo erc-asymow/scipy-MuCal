@@ -169,14 +169,20 @@ def kernelpdf(scale, sigma, datasetGen, masses):
 def kernelpdfPars(A, e, M, sigma, datasetGen, masses, etas, binCenters1, binCenters2, good_idx):
 
     #compute scale from physics parameters
-    etasC = (etas[:-1] + etas[1:]) / 2.
+    #etasC = (etas[:-1] + etas[1:]) / 2.
 
-    sEta = np.sin(2*np.arctan(np.exp(-etasC)))
+    #sEta = np.sin(2*np.arctan(np.exp(-etasC)))
     s1 = sEta[good_idx[0]]
     s2 = sEta[good_idx[1]]
     
-    c1 = binCenters1
-    c2 = binCenters2
+    #c1 = binCenters1
+    #c2 = binCenters2
+    
+    coeffe1 = binCenters1[...,1]
+    coeffM1 = binCenters1[...,0]
+
+    coeffe2 = binCenters2[...,1]
+    coeffM2 = binCenters2[...,0]
 
     # select the model parameters from the eta bins corresponding
     # to each kinematic bin
@@ -188,8 +194,10 @@ def kernelpdfPars(A, e, M, sigma, datasetGen, masses, etas, binCenters1, binCent
     e2 = e[good_idx[1]]
     M2 = M[good_idx[1]]
 
-    term1 = A1-s1*e1*c1+M1/c1
-    term2 = A2-s2*e2*c2-M2/c2
+    #term1 = A1-s1*e1*c1+M1/c1
+    #term2 = A2-s2*e2*c2-M2/c2
+    term1 = A1-e1*coeffe1+M1*coeffM1
+    term2 = A2-e2*coeffe2-M2*coeffM2
     combos = term1*term2
     scale = np.sqrt(combos)
     
@@ -249,8 +257,11 @@ def scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx, line
     s1 = sEta[good_idx[0]]
     s2 = sEta[good_idx[1]]
     
-    k1 = binCenters1
-    k2 = binCenters2
+    coeffe1 = binCenters1[...,1]
+    coeffM1 = binCenters1[...,0]
+
+    coeffe2 = binCenters2[...,1]
+    coeffM2 = binCenters2[...,0]
 
     # select the model parameters from the eta bins corresponding
     # to each kinematic bin
@@ -262,8 +273,11 @@ def scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx, line
     e2 = e[good_idx[1]]
     M2 = M[good_idx[1]]
 
-    term1 = A1-s1*e1*k1+M1/k1
-    term2 = A2-s2*e2*k2-M2/k2
+    #term1 = A1-s1*e1*k1+M1/k1
+    #term2 = A2-s2*e2*k2-M2/k2
+    
+    term1 = A1-e1*coeffe1+M1*coeffM1
+    term2 = A2-e2*coeffe2-M2*coeffM2
     
     if linearize:
         #neglect quadratic term1*term2
@@ -279,8 +293,15 @@ def sigmaSqFromModelPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
     etasC = (etas[:-1] + etas[1:]) / 2.
     
     #rough approximation for now
-    p1 = 1./binCenters1
-    p2 = 1./binCenters2
+    #p1 = 1./binCenters1
+    #p2 = 1./binCenters2
+    
+    coeffc1 = binCenters1[...,2]
+    coeffb1 = binCenters1[...,3]
+    
+    coeffc2 = binCenters2[...,2]
+    coeffb2 = binCenters2[...,3]
+    
 
     L = computeTrackLength(etasC)
     l1 = L[good_idx[0]]
@@ -299,8 +320,11 @@ def sigmaSqFromModelPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
     #res1 = a1*np.power(l1,2) + c1*np.power(l1,4)*np.power(p1,2) + b1*np.power(l1,2)/(1+d1/(np.power(p1,2)*np.power(l1,2)))
     #res2 = a2*np.power(l2,2) + c2*np.power(l2,4)*np.power(p2,2) + b2*np.power(l2,2)/(1+d2/(np.power(p2,2)*np.power(l2,2)))
     
-    res1 = a1 + c1*np.power(p1,2) + b1/(1.+d1/(np.power(p1,2)*np.power(l1,2)))
-    res2 = a2 + c2*np.power(p2,2) + b2/(1.+d2/(np.power(p2,2)*np.power(l2,2)))
+    #res1 = a1 + c1*np.power(p1,2) + b1/(1.+d1/(np.power(p1,2)*np.power(l1,2)))
+    #res2 = a2 + c2*np.power(p2,2) + b2/(1.+d2/(np.power(p2,2)*np.power(l2,2)))
+    
+    res1 = a1 + c1*coeffc1 + b1*coeffb1
+    res2 = a2 + c2*coeffc2 + b2*coeffb2
 
     sigmaSq = 0.25*(res1+res2)
     

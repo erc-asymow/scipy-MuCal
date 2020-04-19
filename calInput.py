@@ -6,6 +6,7 @@ from root_numpy import array2hist, fill_hist
 import argparse
 import itertools
 from scipy.stats import binned_statistic_dd
+from fittingFunctionsBinned import computeTrackLength
 
 ROOT.gROOT.ProcessLine(".L src/module.cpp+")
 ROOT.gROOT.ProcessLine(".L src/applyCalibration.cpp+")
@@ -126,26 +127,44 @@ def makepkg(data, etas, pts, masses, good_idx, smearedMass=False):
     dataset = np.array([data['eta1'],data['eta2'],data['pt1'],data['pt2'],data[mass]])
     
     histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,masses])
+    histo = histo[good_idx]
     
-    #compute mean pt in each bin (integrating over mass)
+    #etasC = (etas[:-1] + etas[1:]) / 2.
+    #L = computeTrackLength(etasC)
+    
+    #compute mean in each bin (integrating over mass) for pt-dependent terms
     massesfull = np.array([masses[0],masses[-1]])
-    histoden,_ = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,massesfull])
+    histoden = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,massesfull])[0][good_idx]
     
-    histopt1,_ = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,massesfull], weights=1./dataset[2])
-    ret1 = histopt1/histoden
-    
-    histopt2,_ = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,massesfull], weights=1./dataset[3])
-    ret2 = histopt2/histoden
-    
-    #remove spurious mass dimension
-    ret1 = np.squeeze(ret1, axis=-1)
-    ret2 = np.squeeze(ret2, axis=-1)
+    binCenters = []
+    for ipt in range(2):
+        pt = dataset[ipt+2]
+        eta = dataset[ipt]
+        L = computeTrackLength(eta)
+        sEta = np.sin(2*np.arctan(np.exp(-eta)))
+        
+        terms = []
+        terms.append(pt)
+        terms.append(sEta/pt)
+        terms.append(np.square(pt))
+        terms.append(np.reciprocal(1.+370./np.square(L)/np.square(pt)))
+        
+        means = []
+        for term in terms:
+            histoterm = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,massesfull], weights=term)[0][good_idx]
+            ret = histoterm/histoden
+            #remove spurious mass dimension
+            ret = np.squeeze(ret, axis=-1)
+            means.append(ret)
+            
+        mean = np.stack(means,axis=-1)
+        binCenters.append(mean)
 
     pkg = {}
-    pkg['dataset'] = histo[good_idx]
+    pkg['dataset'] = histo
     pkg['edges'] = edges
-    pkg['binCenters1'] = ret1[good_idx]
-    pkg['binCenters2'] = ret2[good_idx]
+    pkg['binCenters1'] = binCenters[0]
+    pkg['binCenters2'] = binCenters[1]
     pkg['good_idx'] = good_idx
     
     return pkg
