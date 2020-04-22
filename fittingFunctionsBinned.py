@@ -154,7 +154,7 @@ def kernelpdf(scale, sigma, datasetGen, masses):
 
 
     #contribution from each gen mass bin with correct relative normalization
-    pdfarg = datasetGen_ext*np.exp(-np.power(valsReco  -h, 2.)/(2 * np.power(sigma_ext, 2.)))/sigma_ext/np.sqrt(2.*np.pi)
+    pdfarg = datasetGen_ext*np.exp(-np.square(valsReco  -h)/(2 * np.square(sigma_ext)))/sigma_ext/np.sqrt(2.*np.pi)
     #sum over gen mass bins
     pdf = np.sum(pdfarg,axis=-1)
     #numerical integration over reco mass bins
@@ -350,8 +350,8 @@ def chi2LBins(x, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas, binCenters1, bin
     #batched row vectors
     diffcolT = np.expand_dims(diff,-2)
 
-    print("chi2 shapes")
-    print(diffcol.shape, diffcolT.shape, hScaleSqSigmaSq.shape)
+    #print("chi2 shapes")
+    #print(diffcol.shape, diffcolT.shape, hScaleSqSigmaSq.shape)
 
     #batched matrix multiplication
     lbins = 0.5*np.matmul(diffcolT,np.matmul(hScaleSqSigmaSq, diffcol))

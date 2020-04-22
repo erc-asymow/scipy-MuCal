@@ -1,13 +1,22 @@
 import os
 import multiprocessing
 
-ncpu = multiprocessing.cpu_count()
+#ncpu = multiprocessing.cpu_count()
 
-os.environ["OMP_NUM_THREADS"] = str(ncpu)
-os.environ["OPENBLAS_NUM_THREADS"] = str(ncpu)
-os.environ["MKL_NUM_THREADS"] = str(ncpu)
-os.environ["VECLIB_MAXIMUM_THREADS"] = str(ncpu)
-os.environ["NUMEXPR_NUM_THREADS"] = str(ncpu)
+#os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8" 
+
+#os.environ["OMP_NUM_THREADS"] = str(ncpu)
+#os.environ["OPENBLAS_NUM_THREADS"] = str(ncpu)
+#os.environ["MKL_NUM_THREADS"] = str(ncpu)
+#os.environ["VECLIB_MAXIMUM_THREADS"] = str(ncpu)
+#os.environ["NUMEXPR_NUM_THREADS"] = str(ncpu)
+
+#os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
+#os.environ["XLA_FLAGS"]="--xla_hlo_profile"
+
+#os.environ["XLA_FLAGS"] = "--xla_cpu_multi_thread_eigen=true intra_op_parallelism_threads=32"
+
+#os.environ["XLA_FLAGS"] = "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
 
 import jax
 import jax.numpy as np
@@ -166,8 +175,8 @@ isJ = args.isJ
 runCalibration = args.runCalibration
 fitResolution = args.fitResolution
 
-file = open("calInput{}MC_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
-#file = open("calInput{}DATA_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+#file = open("calInput{}MC_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+file = open("calInput{}DATA_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 pkg = pickle.load(file)
 
 dataset = pkg['dataset']
@@ -188,7 +197,7 @@ nEtaBins = len(etas)-1
 nPtBins = len(pts)-1
 nBins = dataset.shape[0]
 
-print(pts)
+#print(pts)
 
 
 scale = np.ones((nBins,),dtype='float64')
@@ -212,6 +221,8 @@ maxbin = int(5000)
 #for i in range(4):
     #print(good_idx[i])
 #assert(0)
+#print("first minimization")
+
 
 
 #parallel fit for scale, sigma, fbkg, slope in bins
@@ -285,14 +296,19 @@ xmodel = np.zeros((nEtaBins,nModelParms),dtype=np.float64)
 
 chi2 = chi2LBins(xmodel, scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx)
 
-print(chi2)
+
+#print(chi2)
 
 #assert(0)
 
 
 #chi2 = jax.jit(chi2SumBins)(xmodel, binScaleSq, binSigmaSq, covScaleSqSigmaSq, etas, binCenters1, binCenters2, good_idx)
 
+#
+
 #print(chi2)
+
+print("second minimization")
 
 #chi2LBins
 xmodel = pmin(chi2LBins, xmodel.flatten(), args=(scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx), doParallel=False)

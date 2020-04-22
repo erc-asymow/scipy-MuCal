@@ -2,13 +2,13 @@ import os
 import multiprocessing
 import functools
 
-ncpu = multiprocessing.cpu_count()
+#ncpu = multiprocessing.cpu_count()
 
-os.environ["OMP_NUM_THREADS"] = str(ncpu)
-os.environ["OPENBLAS_NUM_THREADS"] = str(ncpu)
-os.environ["MKL_NUM_THREADS"] = str(ncpu)
-os.environ["VECLIB_MAXIMUM_THREADS"] = str(ncpu)
-os.environ["NUMEXPR_NUM_THREADS"] = str(ncpu)
+#os.environ["OMP_NUM_THREADS"] = str(ncpu)
+#os.environ["OPENBLAS_NUM_THREADS"] = str(ncpu)
+#os.environ["MKL_NUM_THREADS"] = str(ncpu)
+#os.environ["VECLIB_MAXIMUM_THREADS"] = str(ncpu)
+#os.environ["NUMEXPR_NUM_THREADS"] = str(ncpu)
 
 import jax
 import jax.numpy as np
@@ -18,7 +18,81 @@ from jax.scipy.special import erf
 
 config.update('jax_enable_x64', True)
 
+def hessianlowmem(fun):
+    def _hessianlowmem(x, *args):
+        def funp(x):
+            return fun(x,*args)
+        _, hvp = jax.linearize(jax.grad(funp), x)
+        #hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        return jax.lax.map(hvp,basis)
+        #return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
+    return _hessianlowmem
 
+def jaclowmem(fun):
+    def _jaclowmem(x, *args):
+        def funp(x):
+            return fun(x,*args)
+        _, jvp = jax.linearize(funp, x)
+        #hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        return jax.lax.map(jvp,basis)
+        #return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
+    return _jaclowmem
+
+
+
+def hessianvlowmem(fun):
+    def _hessianlowmem(x, *args):
+        def funp(x):
+            return fun(x,*args)
+        #_, hvp = jax.linearize(jax.grad(funp), x)
+        def gdotv(x,v):
+            return np.dot(jax.grad(funp)(x),v)
+        def hvp(v):
+            return jax.grad(gdotv)(x,v)
+        #hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        return jax.lax.map(hvp,basis)
+        #return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
+    return _hessianlowmem
+
+
+def hessianvlowmem2(fun):
+    def _hessianlowmem(x, *args):
+        def funp(x):
+            return fun(x,*args)
+        #_, hvp = jax.linearize(jax.grad(funp), x)
+        def jvp(v):
+            return jax.jvp(jax.grad(funp),(x,),(v,))[1]
+        #hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        jac = jax.lax.map(jvp,basis)
+        hess = np.swapaxes(jac,0,1)
+        return hess
+        #return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
+    return _hessianlowmem
+
+
+def hessianvlowmem3(fun):
+    def _hessianlowmem(x, *args):
+        def funp(x):
+            return fun(x,*args)
+        #_, hvp = jax.linearize(jax.grad(funp), x)
+        def jvp(v):
+            return jax.vjp(jax.grad(funp),v)[1](x)
+        #hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        jac = jax.lax.map(jvp,basis)[0]
+        #print(jac.shape)
+        #hess = np.swapaxes(jac,0,1)
+        return jac
+        #return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
+    return _hessianlowmem
+
+#def vmap(f, chunksize=128):
+    #vf = jax.vmap(f)
+    
 
 #parallel minimization using orthogonal basis subspaces based on arXiv:1506.07222,
 #ported from tensorflow implementation in combinetf, but skipping all of the SR1 update
@@ -31,6 +105,129 @@ config.update('jax_enable_x64', True)
 
 #if doParallel is False this can be used as a standard minimizer, where x is just the parameter vector as usual
 
+def vgrad(f, batch_size=128):
+    #vg = jax.vmap(jax.jacfwd(f, holomorphic=True))
+    vg = jax.vmap(jax.grad(f))
+    vg = jax.jit(vg)
+        
+    def _vgrad(x, *args):
+        n = x.shape[0]
+        idxstart = np.arange(0,n,batch_size)
+        idxend =  np.arange(batch_size, n, batch_size)
+        if idxend.shape[0]<idxstart.shape[0]:
+            idxend = np.concatenate((idxend,np.array([n])))
+
+        outs = []
+        for istart,iend in zip(idxstart,idxend):
+            argsplit = []
+            for arg in args:
+                argsplit.append(arg[istart:iend])
+            outs.append(vg(x[istart:iend],*argsplit))
+            
+        return np.concatenate(outs,axis=0)
+    return _vgrad
+
+def hgrad(f, batch_size=128):
+    #vg = jax.vmap(jax.jacrev(jax.grad(f,holomorphic=True),holomorphic=True))
+    vg = jax.vmap(jax.jacfwd((jax.jacrev(f))))
+    #vg = jax.vmap(jax.hessian(f, holomorphic=True))
+    vg = jax.jit(vg)
+
+    
+    def _vgrad(x, *args):
+        n = x.shape[0]
+        idxstart = np.arange(0,n,batch_size)
+        idxend =  np.arange(batch_size, n, batch_size)
+        if idxend.shape[0]<idxstart.shape[0]:
+            idxend = np.concatenate((idxend,np.array([n])))
+
+        outs = []
+        for istart,iend in zip(idxstart,idxend):
+            print("iter")
+            argsplit = []
+            for arg in args:
+                argsplit.append(arg[istart:iend])
+            outs.append(vg(x[istart:iend],*argsplit))
+            
+            
+        return np.concatenate(outs,axis=0)
+    return _vgrad
+        
+
+#def hgrad(f, batch_size=128):
+    ##vg = jax.vmap(jax.jacrev(jax.grad(f,holomorphic=True),holomorphic=True))
+    #vg = jax.vmap(jax.jacfwd((jax.jacrev(f))))
+    ##vg = jax.vmap(jax.hessian(f, holomorphic=True))
+    ##vg = jax.jit(vg)
+    
+    #vgs = []
+    #for i in range(32):
+        #vgs.append(jax.jit(vg, device=jax.devices()[i]))
+
+    
+    #def _vgrad(x, *args):
+        #n = x.shape[0]
+        #idxstart = np.arange(0,n,batch_size)
+        #idxend =  np.arange(batch_size, n, batch_size)
+        #if idxend.shape[0]<idxstart.shape[0]:
+            #idxend = np.concatenate((idxend,np.array([n])))
+
+        ##outs = []
+        ##for istart,iend in zip(idxstart,idxend):
+            ##print("iter")
+            ##argsplit = []
+            ##for arg in args:
+                ##argsplit.append(arg[istart:iend])
+            ##outs.append(vg(x[istart:iend],*argsplit))
+            
+        #lx = []
+        #largs = []
+        #for istart,iend in zip(idxstart,idxend):
+            #print("iter")
+            #argsplit = []
+            #for arg in args:
+                #argsplit.append(arg[istart:iend])
+            #largs.append(argsplit)
+            #lx.append(x[istart:iend])
+            ##outs.append(vg(x[istart:iend],*argsplit))
+        
+        #outs = []
+        #for i,(ix,iargs) in enumerate(zip(lx,largs)):
+            #print("iter2")
+            #ivg = vgs[i%32]
+            #outs.append(ivg(ix,*iargs))
+            
+        #return np.concatenate(outs,axis=0)
+    #return _vgrad
+        
+        
+def hpgrad(f):
+    vg = jax.vmap(jax.jacfwd((jax.jacrev(f))))
+    vg = jax.jit(jax.pmap(vg))
+    def _vgrad(x,*args):
+        ncpu = 2
+        n = x.shape[0]
+        npadded = np.ceil(n/ncpu).astype(np.int32)*ncpu
+        npad = npadded-n
+        print(n, npadded, npad)
+        xpad = np.pad(x,[(0,npad),(0,0)])
+        xpad = np.reshape(xpad,(ncpu,-1,*x.shape[1:]))
+        argspad = []
+        for arg in args:
+            print(arg.shape)
+            argpad = np.pad(arg,[(0,npad),(0,0)])
+            print(argpad.shape)
+            argpad = np.reshape(argpad,(ncpu,-1,*arg.shape[1:]))
+            argspad.append(argpad)
+        res = jax.pmap(vg(xpad,*argspad))
+        res = res = np.reshape(res,(-1,*res.shape[2:]))
+        res = res[:n]
+        return res
+    return _vgrad
+            
+        
+        
+
 def pmin(f, x, args = [], doParallel=True):
     
     tol = np.sqrt(np.finfo('float64').eps)
@@ -38,33 +235,110 @@ def pmin(f, x, args = [], doParallel=True):
     
     trust_radius = np.ones(shape=x.shape[:-1], dtype=x.dtype)
     
-    fiter = jax.jit(piter, static_argnums=(0,4))
+    f = jax.jit(f)
+    
+    batch_size_grad = int(2048)
+    batch_size = int(512)
+    if doParallel:
+        #g = jax.grad(lambda x,*args: np.sum(f(x,*args),axis=0))
+        #g = jax.jit(g)
+        
+        #hi = jax.jacrev(lambda x,*args: np.sum(g(x,*args),axis=0))
+        #h = lambda x,*args: np.swapaxes(hi(x,*args),0,1)
+        #h = jax.jit(h)
+        
+        #g = jax.jit(jax.vmap(jax.grad(f)))
+        #h = jax.vmap(jax.hessian(f))
+        #h = jax.jit(h,backend="cpu")
+        
+        #h = jax.jit(jax.vmap(jax.hessian(f)))
+        #h = jax.
+        g = vgrad(f,batch_size=batch_size_grad)
+        h = hgrad(f,batch_size=batch_size)
+        #h = hpgrad(f)
+        #h = jax.jit(jax.hessian(f))
+    else:
+        #fg = jax.jit(jax.value_and_grad(f))
+        g = jax.jit(jax.grad(f))
+        h = jax.jit(jax.hessian(f))
+    
+    
+    
+    print("starting fit")
+    
+    #fiter = jax.jit(piter, static_argnums=(0,4))
     
     for i in range(maxiter):
         #x,trust_radius,val,gradmag,edm, e0 = fiter(x,trust_radius,args)
-        x,trust_radius,val,gradmag,edm, e0 = fiter(f,x,trust_radius,args,doParallel)
+        x,trust_radius,val,gradmag,edm, e0 = piter(f,g,h,x,trust_radius,args,doParallel)
         print("iter", i, np.sum(val), np.max(trust_radius), np.max(gradmag), np.sum(edm), np.max(edm), np.min(e0))
         if np.all(np.logical_and(e0>0, edm<tol)):
             break        
     return x
 
-def piter(f, x, trust_radius, args, doParallel=True):
+def piter(f,g,h,x,trust_radius, args, doParallel=True):
 
-        fg = jax.value_and_grad(f)
-        h = jax.hessian(f)
         
-        if doParallel:
-            fg = jax.vmap(fg)
-            h = jax.vmap(h)
-            
-        val,grad = fg(x,*args)
-        hess = h(x,*args)
-        e,u = np.linalg.eigh(hess)
-        e0 = e[...,0]
 
+        #fg = jax.value_and_grad(f)
+        #h = jax.hessian(f)
+        ##h = hessianlowmem(f)
+        ##h = hessianvlowmem(f)
+        
+        #g = jax.jacrev(f)
+        #h = jax.jacrev(g)
+        #h = jaclowmem(g)
+        #h = jax.hessian(f)
+        
+        #if doParallel:
+            #fg = jax.vmap(fg)
+            #g = jax.vmap(g)
+            #h = jax.vmap(h)
+            
+        #assert(0)
+        #val,grad = fg(x,*args)
+        #hess = h(x,*args)
+        
+
+        
+        #fgi = jax.value_and_grad(f)
+        #hi = jax.hessian(f)
+        
+        ##fg = jax.vmap(fg)
+        
+        #def fgpack(xv):
+            #return fgi(xv[0],*xv[1:])
+        
+        #def hpack(xv):
+            #return hi(xv[0],*xv[1:])
+        
+        #val = f(x,*args)
+        #grad = g(x,*args)
+        #val,grad = fg(x,*args)
+        #val,grad = jax.lax.map(fgpack,(x,*args))
+        #hess = jax.lax.map(hpack,(x,*args))
+        
+        print("evaluating")
+        val = f(x,*args)
+        print("done evaluating f")
+        grad = g(x,*args)
+        print("done evaluating g")
+        hess = h(x,*args)
+        #hess = np.eye(x.shape[-1],dtype=x.dtype)
+        #hess = np.expand_dims(hess,axis=0)
+        print("done evaluating")
+        
+        print("eigendecomposition")
+        e,u = np.linalg.eigh(hess)
+        #e.block_until_ready()
+        print("eigendecomposition done")
+        e0 = e[...,0]
+        print("next")
         gradmag = np.linalg.norm(grad,axis=-1)
 
+        print("tr_solve")
         p, at_boundary, predicted_reduction, edm = tr_solve(grad,e,u,trust_radius)
+        print("tr_solve done")
 
         #compute actual reduction in loss
         x_new = x + p
@@ -82,6 +356,7 @@ def piter(f, x, trust_radius, args, doParallel=True):
         
         return x_out, trust_radius_out, val, gradmag, edm, e0
 
+@jax.jit
 def tr_solve(grad, e, u, trust_radius):
 
         #compute function value and gradient
