@@ -38,21 +38,21 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars, plotsParsBkg, scaleFromModelPars, splitTransformPars, nllBinsFromBinPars, chi2LBins, scaleSqSigmaSqFromBinsPars,scaleSqFromModelPars,sigmaSqFromModelPars,modelParsFromParVector,scaleSigmaFromModelParVector, plotsBkg, bkgModelFromBinPars
-from obsminimization import pmin
+from obsminimization import pmin,beval,hessianlowmem
 import argparse
 import functools
 import time
 import sys
 
-#slower but lower memory usage calculation of hessian which
-#explicitly loops over hessian rows
-def hessianlowmem(fun):
-    def _hessianlowmem(x, f):
-        _, hvp = jax.linearize(jax.grad(f), x)
-        hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
-        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
-        return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
-    return functools.partial(_hessianlowmem, f=fun)
+##slower but lower memory usage calculation of hessian which
+##explicitly loops over hessian rows
+#def hessianlowmem(fun):
+    #def _hessianlowmem(x, f):
+        #_, hvp = jax.linearize(jax.grad(f), x)
+        #hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
+        #basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        #return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
+    #return functools.partial(_hessianlowmem, f=fun)
 
 #compromise version which vectorizes the calculation, but only partly to save memory
 def hessianoptsplit(fun, vsize=4):
@@ -224,7 +224,7 @@ maxbin = int(5000)
 #print("first minimization")
 
 
-
+xres = xscale
 #parallel fit for scale, sigma, fbkg, slope in bins
 xres = pmin(nllBinspartial, xscale, args=(dataset,datasetgen))
 #xres = xscale
@@ -233,6 +233,7 @@ xres = pmin(nllBinspartial, xscale, args=(dataset,datasetgen))
 def hnll(x,dataset,datasetgen):
     #compute the hessian wrt internal fit parameters in each bin
     hess = jax.hessian(nllBinspartial)
+    #hess = jax.hessianlowmem(nllBinspartial)
     #invert to get the hessian
     cov = np.linalg.inv(hess(x,dataset,datasetgen))
     #compute the jacobian for scale and sigma squared wrt internal fit parameters
@@ -244,9 +245,12 @@ def hnll(x,dataset,datasetgen):
     hscalesigmasq = np.linalg.inv(covscalesigmasq)
     return hscalesigmasq, covscalesigmasq
 fh = jax.jit(jax.vmap(hnll))
+fh = beval(fh, batch_size=256, accumulator = lambda x: np.concatenate(x,axis=0))
+
+#print("run fh")
         
     #vinverse = jax.vmap
-
+#assert(0)
 hScaleSqSigmaSqBinned, hCovScaleSqSigmaSqBinned = fh(xres,dataset,datasetgen)
 
 fbkg, slope = bkgModelFromBinPars(xres)
@@ -318,6 +322,8 @@ xmodel = xmodel.reshape((-1,nModelParms))
 
 fgchi2 = jax.jit(jax.value_and_grad(chi2LBins))
 hchi2 = jax.jit(jax.hessian(chi2LBins))
+
+print("chi2 hess/grad")
 
 chi2,chi2grad = fgchi2(xmodel.flatten(), scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx)
 
@@ -477,7 +483,11 @@ hM.GetXaxis().SetTitle('#eta')
 ha.GetXaxis().SetTitle('#eta')
 hc.GetXaxis().SetTitle('#eta')
 
-scalejac,sigmajac = jax.jit(jax.jacfwd(scaleSigmaFromModelParVector))(xmodel.flatten(),etas, binCenters1, binCenters2, good_idx)
+#assert(0)
+print("evaluate scale sigma jac from model")
+#scalejac,sigmajac = jax.jit(jax.jacfwd(scaleSigmaFromModelParVector))(xmodel.flatten(),etas, binCenters1, binCenters2, good_idx)
+fjac = jax.jit(jax.jacfwd(scaleSigmaFromModelParVector))
+scalejac,sigmajac = fjac(xmodel.flatten(),etas, binCenters1, binCenters2, good_idx)
 scalesigmajac = np.stack((scalejac,sigmajac),axis=1)
 scalesigmajac = np.reshape(scalesigmajac, (-1,covmodel.shape[0]))
 covScaleSigmaModel = np.matmul(scalesigmajac,np.matmul(covmodel,scalesigmajac.T))

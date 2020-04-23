@@ -149,7 +149,7 @@ def kernelpdf(scale, sigma, datasetGen, masses):
     #minZ = (masses[0]-h)/xscale
     
     #normarg = 0.5*(erf(maxZ)-erf(minZ))
-    #I = datasetGen[:,np.newaxis,:]*normarg
+    #I = datasetGen_ext*normarg
     #I = np.sum(I, axis=-1)
 
 
@@ -231,15 +231,15 @@ def exppdf(slope, masses):
     slope_ext = np.expand_dims(slope,-1)/(masses[-1]-masses[0])
     
     #analytic integral
+    #I = (np.exp(-0.*slope_ext) - np.exp(-slope_ext*(masses[-1]-masses[0])))/slope_ext
+    #I = (1. - np.exp(-slope[...,np.newaxis]))/slope_ext
+    #I = np.where(I>0.,I,(masses[-1]-masses[0])[...,np.newaxis])
     #I = (np.exp(-slope_ext*masses[0]) - np.exp(-slope_ext*masses[-1]))/slope_ext
-    #print(slope_ext.shape)
-    #print(I.shape)
-    #I = I[:,np.newaxis]
+    #I = I[...,np.newaxis]
     
     #pdf = np.exp(-slope_ext*valsReco)
     pdf = np.exp(-slope_ext*(valsReco-masses[0]))
     #numerical integration over reco mass bins
-    #I = np.sum(pdf, axis=-1, keepdims=True)
     I = np.sum(massWidth*pdf, axis=-1, keepdims=True)
     pdf = pdf/np.where(pdf>0.,I,1.)
 

@@ -105,6 +105,32 @@ def hessianvlowmem3(fun):
 
 #if doParallel is False this can be used as a standard minimizer, where x is just the parameter vector as usual
 
+def beval(f, batch_size=128, accumulator=lambda x: np.add(x,axis=0)):
+    def _beval(*args):
+        args_flat, args_tree = jax.tree_util.tree_flatten(args)
+        length = args_flat[0].shape[0]
+        idxstart = np.arange(0,length,batch_size)
+        idxend = idxstart + batch_size
+        #idxend =  np.arange(batch_size, length, batch_size)
+        #if idxend.shape[0]<idxstart.shape[0]:
+            #idxend = np.concatenate((idxend,np.array([length])))
+        
+        out_flat_batches = []
+        for istart,iend in zip(idxstart,idxend):
+            args_batch = []
+            for arg in args:
+                args_batch.append(arg[istart:iend])
+            out_flat_batch, out_tree = jax.tree_flatten(f(*args_batch))
+            out_flat_batches.append(out_flat_batch)
+
+        out_flat_batches = [list(x) for x in zip(*out_flat_batches)]
+        out_flat = []
+        for out in out_flat_batches:
+            out_flat.append(accumulator(out))
+        out = jax.tree_util.tree_unflatten(out_tree, out_flat)
+        return out
+    return _beval
+
 def vgrad(f, batch_size=128):
     #vg = jax.vmap(jax.jacfwd(f, holomorphic=True))
     vg = jax.vmap(jax.grad(f))
@@ -243,6 +269,12 @@ def pmin(f, x, args = [], doParallel=True):
         #g = jax.grad(lambda x,*args: np.sum(f(x,*args),axis=0))
         #g = jax.jit(g)
         
+        fg = jax.jit(jax.vmap(jax.value_and_grad(f)))
+        fg = beval(fg, accumulator=lambda x: np.concatenate(x,axis=0), batch_size=512)
+        
+        h  = jax.jit(jax.vmap(jax.hessian(f)))
+        h = beval(h, accumulator=lambda x: np.concatenate(x,axis=0), batch_size=512)
+        
         #hi = jax.jacrev(lambda x,*args: np.sum(g(x,*args),axis=0))
         #h = lambda x,*args: np.swapaxes(hi(x,*args),0,1)
         #h = jax.jit(h)
@@ -253,13 +285,12 @@ def pmin(f, x, args = [], doParallel=True):
         
         #h = jax.jit(jax.vmap(jax.hessian(f)))
         #h = jax.
-        g = vgrad(f,batch_size=batch_size_grad)
-        h = hgrad(f,batch_size=batch_size)
+        #g = vgrad(f,batch_size=batch_size_grad)
+        #h = hgrad(f,batch_size=batch_size)
         #h = hpgrad(f)
         #h = jax.jit(jax.hessian(f))
     else:
-        #fg = jax.jit(jax.value_and_grad(f))
-        g = jax.jit(jax.grad(f))
+        fg = jax.jit(jax.value_and_grad(f))
         h = jax.jit(jax.hessian(f))
     
     
@@ -268,15 +299,17 @@ def pmin(f, x, args = [], doParallel=True):
     
     #fiter = jax.jit(piter, static_argnums=(0,4))
     
+    
+    val, grad = fg(x,*args)
     for i in range(maxiter):
-        #x,trust_radius,val,gradmag,edm, e0 = fiter(x,trust_radius,args)
-        x,trust_radius,val,gradmag,edm, e0 = piter(f,g,h,x,trust_radius,args,doParallel)
+        x, val, grad, trust_radius, edm, e0 = piter(fg,h,x,val,grad,trust_radius,args)
+        gradmag = np.linalg.norm(grad,axis=-1)
         print("iter", i, np.sum(val), np.max(trust_radius), np.max(gradmag), np.sum(edm), np.max(edm), np.min(e0))
         if np.all(np.logical_and(e0>0, edm<tol)):
             break        
     return x
 
-def piter(f,g,h,x,trust_radius, args, doParallel=True):
+def piter(fg,h,x,val,grad,trust_radius, args):
 
         
 
@@ -318,23 +351,24 @@ def piter(f,g,h,x,trust_radius, args, doParallel=True):
         #val,grad = jax.lax.map(fgpack,(x,*args))
         #hess = jax.lax.map(hpack,(x,*args))
         
-        print("evaluating")
-        val = f(x,*args)
-        print("done evaluating f")
-        grad = g(x,*args)
-        print("done evaluating g")
+        
+        #print("evaluating")
+        ##val = f(x,*args)
+        ##print("done evaluating f")
+        ##grad = g(x,*args)
+        #val,grad = fg(x,*args)
+        #print("done evaluating fg")
         hess = h(x,*args)
         #hess = np.eye(x.shape[-1],dtype=x.dtype)
         #hess = np.expand_dims(hess,axis=0)
         print("done evaluating")
         
         print("eigendecomposition")
-        e,u = np.linalg.eigh(hess)
+        e,u = eigh(hess)
         #e.block_until_ready()
         print("eigendecomposition done")
         e0 = e[...,0]
         print("next")
-        gradmag = np.linalg.norm(grad,axis=-1)
 
         print("tr_solve")
         p, at_boundary, predicted_reduction, edm = tr_solve(grad,e,u,trust_radius)
@@ -342,19 +376,26 @@ def piter(f,g,h,x,trust_radius, args, doParallel=True):
 
         #compute actual reduction in loss
         x_new = x + p
-        val_new = f(x_new, *args)
+        val_new, grad_new = fg(x_new, *args)
         actual_reduction = val - val_new
         
         #update trust radius and output parameters, following Nocedal and Wright 2nd ed. Algorithm 4.1
         eta = 0.15
         trust_radius_max = 1e3
         rho = actual_reduction/np.where(np.equal(actual_reduction,0.), 1., predicted_reduction)
-        rho = np.where(np.isnan(rho),0.,rho)
         trust_radius_out = np.where(rho<0.25, 0.25*trust_radius, np.where(np.logical_and(rho>0.75,at_boundary),np.minimum(2.*trust_radius, trust_radius_max),trust_radius))
         
-        x_out = np.where(rho[...,np.newaxis]>eta, x_new, x)
+        acceptsol = rho>eta
+        #compute hessian only if needed
+        #hess_new = jax.lax.cond(np.any(acceptsol), None, lambda _: h(x_new,*args), None, lambda _: hess)
+        x_out = np.where(acceptsol[...,np.newaxis], x_new, x)
+        val_out = np.where(acceptsol, val_new, val)
+        grad_out = np.where(acceptsol[...,np.newaxis], grad_new, grad)
+        #hess_out = np.where(acceptsol[...,np.newaxis,np.newaxis], hess_new, hess)
         
-        return x_out, trust_radius_out, val, gradmag, edm, e0
+        return x_out, val_out, grad_out, trust_radius_out, edm, e0
+
+eigh = jax.jit(np.linalg.eigh)
 
 @jax.jit
 def tr_solve(grad, e, u, trust_radius):
