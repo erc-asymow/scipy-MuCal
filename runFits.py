@@ -38,7 +38,7 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars, plotsParsBkg, scaleFromModelPars, splitTransformPars, nllBinsFromBinPars, chi2LBins, scaleSqSigmaSqFromBinsPars,scaleSqFromModelPars,sigmaSqFromModelPars,modelParsFromParVector,scaleSigmaFromModelParVector, plotsBkg, bkgModelFromBinPars
-from obsminimization import pmin,beval,hessianlowmem
+from obsminimization import pmin,batch_vmap,jacvlowmemb
 import argparse
 import functools
 import time
@@ -244,8 +244,9 @@ def hnll(x,dataset,datasetgen):
     #invert again to get the hessian
     hscalesigmasq = np.linalg.inv(covscalesigmasq)
     return hscalesigmasq, covscalesigmasq
-fh = jax.jit(jax.vmap(hnll))
-fh = beval(fh, batch_size=256, accumulator = lambda x: np.concatenate(x,axis=0))
+#fh = jax.jit(jax.vmap(hnll))
+fh = jax.jit(batch_vmap(hnll, batch_size=256))
+#fh = beval(fh, batch_size=256, accumulator = lambda x: np.concatenate(x,axis=0))
 
 #print("run fh")
         
@@ -487,12 +488,32 @@ hc.GetXaxis().SetTitle('#eta')
 print("evaluate scale sigma jac from model")
 #scalejac,sigmajac = jax.jit(jax.jacfwd(scaleSigmaFromModelParVector))(xmodel.flatten(),etas, binCenters1, binCenters2, good_idx)
 fjac = jax.jit(jax.jacfwd(scaleSigmaFromModelParVector))
+#fjac = jax.jit(jacvlowmemb(scaleSigmaFromModelParVector, batch_size=1))
 scalejac,sigmajac = fjac(xmodel.flatten(),etas, binCenters1, binCenters2, good_idx)
+#print(scalejac,sigmajac)
+#assert(0)
 scalesigmajac = np.stack((scalejac,sigmajac),axis=1)
 scalesigmajac = np.reshape(scalesigmajac, (-1,covmodel.shape[0]))
-covScaleSigmaModel = np.matmul(scalesigmajac,np.matmul(covmodel,scalesigmajac.T))
-scaleSigmaErrsModel = np.sqrt(np.diag(covScaleSigmaModel))
+#print(scalesigmajac)
+
+#compute error one element at a time to avoid computing full 24k^2 covariance matrix
+def scalesigmaerr(scalesigmajac):
+    jcol = np.expand_dims(scalesigmajac,axis=-1)
+    res = np.matmul(jcol.T, np.matmul(covmodel, jcol))
+    err = np.sqrt(np.squeeze(res,axis=-1))
+    return err
+    
+scaleSigmaErrsModel = jax.jit(batch_vmap(scalesigmaerr, batch_size=256))(scalesigmajac)
+
+#covScaleSigmaModel = np.matmul(scalesigmajac,np.matmul(covmodel,scalesigmajac.T))
+#print(covScaleSigmaModel)
+#print(scalesigmajac.shape)
+#print(covScaleSigmaModel.shape)
+#assert(0)
+#scaleSigmaErrsModel = np.sqrt(np.diag(covScaleSigmaModel))
 scaleSigmaErrsModel = np.reshape(scaleSigmaErrsModel, (-1,2))
+
+#assert(0)
 
 #have to use original numpy to construct the bin edges because for some reason this doesn't work with the arrays returned by jax
 scaleplotBinned = ROOT.TH1D("scaleBinned", "scale", nBins, onp.linspace(0, nBins, nBins+1))

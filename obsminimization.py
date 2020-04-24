@@ -1,6 +1,7 @@
 import os
 import multiprocessing
 import functools
+import itertools
 
 #ncpu = multiprocessing.cpu_count()
 
@@ -26,6 +27,44 @@ def hessianlowmem(fun):
         #hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
         basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
         return jax.lax.map(hvp,basis)
+        #return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
+    return _hessianlowmem
+
+def hessianlowmemb(fun, batch_size=8):
+    def _hessianlowmem(x, *args):
+        def funp(x):
+            return fun(x,*args)
+        _, hvp = jax.linearize(jax.grad(funp), x)
+        #hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        return batch_vmap(hvp,batch_size=batch_size)(basis)
+        #return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
+    return _hessianlowmem
+
+def jaclowmemb(fun, batch_size=8):
+    def _jaclowmem(x, *args):
+        def funp(x):
+            return fun(x,*args)
+        _, jvp = jax.linearize(funp, x)
+        #hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        return batch_vmap(jvp,batch_size=batch_size)(basis)
+        #return batch_vmap.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
+    return _jaclowmem
+
+def jacvlowmemb(fun, batch_size=8):
+    def _hessianlowmem(x, *args):
+        def funp(x):
+            return fun(x,*args)
+        #_, hvp = jax.linearize(jax.grad(funp), x)
+        def jvp(v):
+            return jax.jvp(funp,(x,),(v,))[1]
+        #hvp = jax.jit(hvp)  # seems like a substantial speedup to do this
+        basis = np.eye(np.prod(x.shape)).reshape(-1, *x.shape)
+        #jac = jax.lax.map(jvp,basis)
+        jac = batch_vmap(jvp, batch_size=batch_size)(basis)
+        #hess = np.swapaxes(jac,0,1)
+        return jac
         #return np.stack([hvp(e) for e in basis]).reshape(x.shape + x.shape)
     return _hessianlowmem
 
@@ -105,22 +144,22 @@ def hessianvlowmem3(fun):
 
 #if doParallel is False this can be used as a standard minimizer, where x is just the parameter vector as usual
 
-def beval(f, batch_size=128, accumulator=lambda x: np.add(x,axis=0)):
+def beval2(f, batch_size=128, accumulator=lambda x: np.add(x,axis=0)):
     def _beval(*args):
         args_flat, args_tree = jax.tree_util.tree_flatten(args)
         length = args_flat[0].shape[0]
         idxstart = np.arange(0,length,batch_size)
         idxend = idxstart + batch_size
-        #idxend =  np.arange(batch_size, length, batch_size)
-        #if idxend.shape[0]<idxstart.shape[0]:
-            #idxend = np.concatenate((idxend,np.array([length])))
+
+        out_shape = jax.eval_shape(f,*args)
+        _,out_tree = jax.tree_flatten(out_shape)
         
         out_flat_batches = []
         for istart,iend in zip(idxstart,idxend):
             args_batch = []
             for arg in args:
                 args_batch.append(arg[istart:iend])
-            out_flat_batch, out_tree = jax.tree_flatten(f(*args_batch))
+            out_flat_batch, _ = jax.tree_flatten(f(*args_batch))
             out_flat_batches.append(out_flat_batch)
 
         out_flat_batches = [list(x) for x in zip(*out_flat_batches)]
@@ -128,6 +167,102 @@ def beval(f, batch_size=128, accumulator=lambda x: np.add(x,axis=0)):
         for out in out_flat_batches:
             out_flat.append(accumulator(out))
         out = jax.tree_util.tree_unflatten(out_tree, out_flat)
+        return out
+    return _beval
+
+def beval3(f, batch_size=128, accumulator=lambda x: np.add(x,axis=0)):
+    def _beval(*args):
+        #args_tree = jax.tree_structure(*args)
+        out_shape = jax.eval_shape(f,*args)
+        out_tree = jax.tree_util.tree_structure(out_shape)
+        
+        args_flat, args_tree = jax.tree_util.tree_flatten(args)
+        length = args_flat[0].shape[0]
+        
+        splitidx = np.arange(batch_size, length, batch_size)
+        splitargs_flat = map(lambda x: np.split(x,splitidx), args_flat)
+        split_tree = jax.tree_util.tree_structure(splitargs_flat[0])
+        
+        splitargs = jax.tree_util.tree_transpose(split_tree, args_tree)
+        splitout = itertools.starmap(f,splitargs)
+        
+        
+        
+        #splitargs = [jax.tree_unflatten(args_tree, splitarg) for splitarg in zip(*splitargs_flat)]
+        
+        #out = jax.tree_util.tree_unflatten(out_tree, splitout)
+        
+        splitout_flat,_ = jax.tree_util.tree_flatten(splitout)
+        
+        out_flat_batches = []
+        for istart,iend in zip(idxstart,idxend):
+            args_batch = []
+            for arg in args:
+                args_batch.append(arg[istart:iend])
+            out_flat_batch, _ = jax.tree_flatten(f(*args_batch))
+            out_flat_batches.append(out_flat_batch)
+
+        out_flat_batches = [list(x) for x in zip(*out_flat_batches)]
+        out_flat = []
+        for out in out_flat_batches:
+            out_flat.append(accumulator(out))
+        out = jax.tree_util.tree_unflatten(out_tree, out_flat)
+        return out
+    return _beval
+
+def batch_vmap(f, batch_size=128):
+    fbatch = jax.vmap(f)
+    def _beval(*args):
+        out_shape = jax.eval_shape(fbatch,*args)
+        args_flat, args_tree = jax.tree_util.tree_flatten(args)
+        length = args_flat[0].shape[0]
+        
+        nbatchfull = length//batch_size
+        batched_length = nbatchfull*batch_size
+        remainder = length%batch_size
+        
+        args_batched = jax.tree_util.tree_map(lambda x: np.reshape(x[:batched_length], (nbatchfull, batch_size, *x.shape[1:])), args)
+        out_batched = jax.lax.map(lambda x: fbatch(*x), args_batched)
+        out = jax.tree_util.tree_map(lambda x: np.reshape(x, (batched_length,*x.shape[2:])), out_batched)
+        
+        if remainder>0:
+            args_remainder = jax.tree_util.tree_map(lambda x: x[batched_length:], args)
+            out_remainder = fbatch(*args_remainder)
+            
+            out_flat, out_tree = jax.tree_util.tree_flatten(out)
+            out_remainder_flat,_ = jax.tree_util.tree_flatten(out_remainder)
+            
+            out_flat = [np.concatenate((out_i,out_remainder_i),axis=0) for out_i, out_remainder_i in zip(out_flat,out_remainder_flat)]
+            out = jax.tree_util.tree_unflatten(out_tree, out_flat)
+
+        return out
+    return _beval
+
+def batch_accumulate(f, batch_size=128, accumulate=lambda y,x: np.add(y,x)):
+    def _beval(*args):
+        out_shape = jax.eval_shape(fbatch,*args)
+        out_zeros = jax.tree_util.treemap(np.zeros_like, out_shape)
+
+        args_flat, args_tree = jax.tree_util.tree_flatten(args)
+        length = args_flat[0].shape[0]
+
+        nbatchfull = length//batch_size
+        batched_length = nbatchfull*batch_size
+        remainder = length%batch_size
+
+        args_batched = jax.tree_util.tree_map(lambda x: np.reshape(x[:batched_length], (nbatchfull, batch_size, *x.shape[1:])), args)
+        out = jax.lax.scan(lambda y,x: accumulate(y,f(*x)), init=out_zeros, xs=args_batched)
+
+        if remainder>0:
+            args_remainder = jax.tree_util.tree_map(lambda x: x[batched_length:], args)
+            out_remainder = fbatch(*args_remainder)
+            
+            out_flat, out_tree = jax.tree_util.tree_flatten(out)
+            out_remainder_flat,_ = jax.tree_util.tree_flatten(out_remainder)
+            
+            out_flat = [accumulate(out_i,remainder_i) for out_i, out_remainder_i in zip(out_flat,out_remainder_flat)]
+            out = jax.tree_util.tree_unflatten(out_tree, out_flat)
+
         return out
     return _beval
 
@@ -269,11 +404,16 @@ def pmin(f, x, args = [], doParallel=True):
         #g = jax.grad(lambda x,*args: np.sum(f(x,*args),axis=0))
         #g = jax.jit(g)
         
-        fg = jax.jit(jax.vmap(jax.value_and_grad(f)))
-        fg = beval(fg, accumulator=lambda x: np.concatenate(x,axis=0), batch_size=512)
+        #fg = jax.jit(jax.vmap(jax.value_and_grad(f)))
+        #fg = beval(fg, accumulator=lambda x: np.concatenate(x,axis=0), batch_size=512)
+        #fg = jax.jit(fg)
         
-        h  = jax.jit(jax.vmap(jax.hessian(f)))
-        h = beval(h, accumulator=lambda x: np.concatenate(x,axis=0), batch_size=512)
+        #h  = jax.jit(jax.vmap(jax.hessian(f)))
+        #h = beval(h, accumulator=lambda x: np.concatenate(x,axis=0), batch_size=512)
+        #h = jax.jit(h)
+        
+        fg = jax.jit(batch_vmap(jax.value_and_grad(f), batch_size=256))
+        h = jax.jit(batch_vmap(jax.hessian(f), batch_size=256))
         
         #hi = jax.jacrev(lambda x,*args: np.sum(g(x,*args),axis=0))
         #h = lambda x,*args: np.swapaxes(hi(x,*args),0,1)
