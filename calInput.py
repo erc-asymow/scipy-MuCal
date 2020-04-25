@@ -2,7 +2,7 @@ import ROOT
 import pickle
 import numpy as np
 from header import CastToRNode
-from root_numpy import array2hist, fill_hist
+from root_numpy import array2hist, hist2array, fill_hist
 import argparse
 import itertools
 from scipy.stats import binned_statistic_dd
@@ -27,12 +27,12 @@ dataDir = args.dataDir
 ROOT.ROOT.EnableImplicitMT()
 RDF = ROOT.ROOT.RDataFrame
 
-def makeData(inputFile, genMass=False, smearedMass=False, isData=False):
+def makeData(inputFile, genMass=False, smearedMass=False, mcTruth=False, isData=False):
 
     if isJ:
         cut = 'pt1>4.3 && pt2>4.3 && pt1<25. && pt2<25.'# && mass>2.9 && mass<3.3'
     else:
-        cut = 'pt1>20.0 && pt2>20.0 '#&& mass>75. && mass<115.'
+        cut = 'pt1>20.0 && pt2>20.0 && pt1<100. && pt2<100.'#&& mass>75. && mass<115.'
     if restrictToBarrel:
         cut+= '&& fabs(eta1)<0.8 && fabs(eta2)<0.8'
     else:
@@ -50,35 +50,20 @@ def makeData(inputFile, genMass=False, smearedMass=False, isData=False):
                         for (auto &&gen : myRndGens) gen.SetSeed(seed++);
                         '''.format(NSlots = NSlots))
 
-
-    if isJ:
-        cut = 'pt1>4.3 && pt2>4.3 && pt1<25. && pt2<25.'# && mass>2.9 && mass<3.3'
-        
-    else:
-        cut = 'pt1>20.0 && pt2>20.0 && mass>80. && mass<100.'
-
-    if restrictToBarrel:
-        cut+= '&& fabs(eta1)<0.8 && fabs(eta2)<0.8'
-
-    else:
-        cut+= '&& fabs(eta1)<2.4 && fabs(eta2)<2.4' 
-
-    if genMass:
-
-        cut+= '&& mcpt1>0. && mcpt2>0.'
-
     print(cut)
-
     
-
     d = d.Filter(cut)\
         .Define('v1', 'ROOT::Math::PtEtaPhiMVector(pt1,eta1,phi1,0.105658)')\
-        .Define('v2', 'ROOT::Math::PtEtaPhiMVector(pt2,eta2,phi2,0.105658)')
-    
+        .Define('v2', 'ROOT::Math::PtEtaPhiMVector(pt2,eta2,phi2,0.105658)')\
+
     if smearedMass:
         d = d.Define('v1sm', 'ROOT::Math::PtEtaPhiMVector(mcpt1+myRndGens[rdfslot_].Gaus(0., cErr1*mcpt1),eta1,phi1,0.105658)')\
             .Define('v2sm', 'ROOT::Math::PtEtaPhiMVector(mcpt2+myRndGens[rdfslot_].Gaus(0., cErr2*mcpt2),eta2,phi2,0.105658)')\
             .Define('smearedgenMass', '(v1sm+v2sm).M()')
+
+    if mcTruth:
+        d = d.Define('res1','pt1/mcpt1')\
+            .Define('res2','pt2/mcpt2')\
 
     f = ROOT.TFile.Open('%s/bFieldMap.root' % dataDir)
     bFieldMap = f.Get('bfieldMap')
@@ -103,6 +88,10 @@ def makeData(inputFile, genMass=False, smearedMass=False, isData=False):
     
     if genMass:
         cols.append('genMass')
+
+    if mcTruth:
+        cols.append('res1')
+        cols.append('res2')
     
     data = d.AsNumpy(columns=cols)
 
@@ -116,6 +105,60 @@ def makeGenDataset(data, etas, pts, masses):
 
     return histoGen
 
+def makeMCTruthDataset(data, etas, pts, masses):
+
+    #add charge for mc truth events
+    charge1 = np.ones_like(data['eta1'])
+    charge2 = -np.ones_like(data['eta1'])
+
+    datasetMCTruth = np.array([np.concatenate((data['eta1'],data['eta2']),axis=None),np.concatenate((charge1*data['pt1'],charge2*data['pt2']),axis=None),np.concatenate((data['res1'], data['res2']),axis=None)])
+    histoMCTruth, edges = np.histogramdd(datasetMCTruth.T, bins = [etas,pts,masses])
+
+    #compute mean in each bin (integrating over mass) for pt-dependent terms
+    massesfull = np.array([masses[0],masses[-1]])
+    histoden = np.histogramdd(datasetMCTruth.T, bins = [etas,pts,massesfull])[0]
+
+    pt = datasetMCTruth[1]
+    eta = datasetMCTruth[0]
+    sEta = np.sin(2*np.arctan(np.exp(-eta)))
+    L = computeTrackLength(eta)
+
+    fIn = ROOT.TFile.Open("resolutionMCtruth.root")
+    bHisto = fIn.Get("b")
+    dHisto = fIn.Get("d")
+
+    bterm = hist2array(bHisto)
+    dterm = hist2array(dHisto)
+
+    terms_etas = np.linspace(-2.4, 2.4, bterm.shape[0]+1, dtype='float64')
+    findBin = np.digitize(eta, terms_etas)-1
+    b = bterm[findBin]
+    d = dterm[findBin]
+
+    terms = []
+    terms.append(pt)
+    terms.append(np.abs(sEta/pt))
+    terms.append(np.square(pt))
+    terms.append(np.square(L))
+    terms.append(b*np.square(L)*np.reciprocal(1.+d/np.square(pt)/np.square(L)))
+
+    means = []
+    for term in terms:
+        histoterm = np.histogramdd(datasetMCTruth.T, bins = [etas,pts,massesfull], weights=term)[0]
+        ret = histoterm/histoden
+        #remove spurious mass dimension
+        ret = np.squeeze(ret, axis=-1)
+        
+        means.append(ret.flatten())
+            
+    mean = np.stack(means,axis=-1)
+    
+    pkg = {}
+    pkg['dataset'] = histoMCTruth
+    pkg['edges'] = edges
+    pkg['binCenters'] = mean
+
+    return pkg
 
 def makepkg(data, etas, pts, masses, good_idx, smearedMass=False):
 
@@ -128,37 +171,51 @@ def makepkg(data, etas, pts, masses, good_idx, smearedMass=False):
     
     histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,masses])
     histo = histo[good_idx]
-    
-    #etasC = (etas[:-1] + etas[1:]) / 2.
-    #L = computeTrackLength(etasC)
-    
+
     #compute mean in each bin (integrating over mass) for pt-dependent terms
     massesfull = np.array([masses[0],masses[-1]])
     histoden = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,massesfull])[0][good_idx]
+
+    fIn = ROOT.TFile.Open("resolutionMCtruth.root")
+    bHisto = fIn.Get("b")
+    dHisto = fIn.Get("d")
+
+    bterm = hist2array(bHisto)
+    dterm = hist2array(dHisto)
+
+    terms_etas = np.linspace(-2.4, 2.4, bterm.shape[0]+1, dtype='float64')
     
     binCenters = []
     for ipt in range(2):
         pt = dataset[ipt+2]
         eta = dataset[ipt]
         L = computeTrackLength(eta)
+        
         sEta = np.sin(2*np.arctan(np.exp(-eta)))
+        findBin = np.digitize(eta, terms_etas)-1
+        b = bterm[findBin]
+        d = dterm[findBin]
         
         terms = []
         terms.append(pt)
         terms.append(sEta/pt)
         terms.append(np.square(pt))
-        terms.append(np.reciprocal(1.+370./np.square(L)/np.square(pt)))
-        
+        terms.append(np.square(L))
+        terms.append(b*np.square(L)*np.reciprocal(1.+d/np.square(pt)/np.square(L)))
+
         means = []
         for term in terms:
             histoterm = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,massesfull], weights=term)[0][good_idx]
             ret = histoterm/histoden
             #remove spurious mass dimension
             ret = np.squeeze(ret, axis=-1)
+            
             means.append(ret)
             
         mean = np.stack(means,axis=-1)
+        
         binCenters.append(mean)
+        
 
     pkg = {}
     pkg['dataset'] = histo
@@ -180,7 +237,7 @@ else:
 
 
 nEtaBins = 48
-nPtBins = 5
+nPtBins = 30
 nMassBins = 100
 
 if restrictToBarrel:
@@ -213,20 +270,18 @@ pklfileMC+='.pkl'
 if not isJ:
     pklfileGen = 'calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1)
     filehandler = open('calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1), 'wb')
+    pklfileMCtruth = 'calInputZMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1)
+    filehandler = open('calInputZMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1), 'wb')
 else:
     pklfileGen = 'calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1)
     filehandler = open('calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1), 'wb')
+    pklfileMCtruth = 'calInputJMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1)
+    filehandler = open('calInputJMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1), 'wb')
 
 print(pklfileData, pklfileMC)
 #print(pkgD['dataset'][0][0] - pkgMC['dataset'][0])
 
-
-mcrecomass = "mass"
-if smearedMC:
-    mcrecomass = "smearedgenMass"
-
-dataMC = makeData(inputFileMC, genMass=True, smearedMass=smearedMC)
-
+dataMC = makeData(inputFileMC, genMass=True, smearedMass=smearedMC, mcTruth = True)
 
 print(ptquantiles)
 pts = np.quantile(np.concatenate((dataMC['pt1'],dataMC['pt2']),axis=0),ptquantiles)
@@ -239,19 +294,33 @@ print("good_idx size", good_idx[0].shape)
 
 histoGen = histoGen[good_idx]
 
+res = np.linspace(0.95, 1.05, nMassBins+1, dtype='float64')
+pkgTruth = makeMCTruthDataset(dataMC,etas,pts,res)
+
+good_idx2 = np.nonzero(np.sum(pkgTruth['dataset'],axis=-1)>1000.)
+print("good_idx2 size", good_idx2[0].shape)
+
+pkgTruth['dataset'] = pkgTruth['dataset'][good_idx2]
+pkgTruth['good_idx'] = good_idx2
+
 with open(pklfileGen, 'wb') as filehandler:
-    pickle.dump(histoGen, filehandler)
+    pickle.dump(histoGen, filehandler, protocol=pickle.HIGHEST_PROTOCOL)
 histoGen = None
 
+with open(pklfileMCtruth, 'wb') as filehandler:
+    pickle.dump(pkgTruth, filehandler, protocol=pickle.HIGHEST_PROTOCOL)
+pkgTruth = None
+
 pkgMC = makepkg(dataMC, etas, pts, masses, good_idx, smearedMass=smearedMC)
+
 dataMC = None
 with open(pklfileMC, 'wb') as filehandler:
-    pickle.dump(pkgMC, filehandler)
+    pickle.dump(pkgMC, filehandler, protocol=pickle.HIGHEST_PROTOCOL)
 pkgMC = None
 
 dataD = makeData(inputFileD, isData=True)
 pkgD = makepkg(dataD, etas, pts, masses, good_idx)
 dataD = None
 with open(pklfileData, 'wb') as filehandler:
-    pickle.dump(pkgD, filehandler)
+    pickle.dump(pkgD, filehandler, protocol=pickle.HIGHEST_PROTOCOL)
 pkgD = None
