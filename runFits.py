@@ -203,16 +203,22 @@ if fitMCtruth:
     datasetZ = pkgZtruth['dataset']
 
     #merge datasets and pts
-    dataset = np.concatenate((datasetJ,datasetZ), axis=0)
-    pts = np.concatenate((ptsJ,ptsZ),axis=0)
-    masses = pkgJtruth['edges'][-1]
+    #dataset = np.concatenate((datasetJ,datasetZ), axis=0)
+    #pts = np.concatenate((ptsJ,ptsZ),axis=0)
+    #masses = pkgJtruth['edges'][-1]
 
-    good_idxJ = pkgJtruth['good_idx']
-    good_idxZ = pkgZtruth['good_idx']
-    total = good_idxJ + good_idxZ
-    print len(total), total[0].shape,total[3].shape
-    good_idx =(np.concatenate((total[0],total[2]),axis=0),np.concatenate((total[1],total[3]),axis=0))
-    binCenters = np.concatenate((pkgJtruth['binCenters'],pkgZtruth['binCenters']),axis=0)
+    #good_idxJ = pkgJtruth['good_idx']
+    #good_idxZ = pkgZtruth['good_idx']
+    #total = good_idxJ + good_idxZ
+    #print len(total), total[0].shape,total[3].shape
+    #good_idx =(np.concatenate((total[0],total[2]),axis=0),np.concatenate((total[1],total[3]),axis=0))
+    #binCenters = np.concatenate((pkgJtruth['binCenters'],pkgZtruth['binCenters']),axis=0)
+    dataset = datasetJ
+    masses = pkgJtruth['edges'][-1]
+    good_idx = pkgJtruth['good_idx']
+    binCenters = pkgJtruth['binCenters']
+    pts = pkgJtruth['edges'][1]
+
 
 nEtaBins = len(etas)-1
 nPtBins = len(pts)-1
@@ -343,7 +349,7 @@ edm = 0.5*np.matmul(np.matmul(gradmodel.T,covmodel),gradmodel)
 
 print("nEtaBins", nEtaBins)
 print("nBins", nBins)
-print("chi2/dof = %f/%d = %f" % (valmodel,ndof,valmodel/float(ndof)))
+print("chi2/dof = %f/%d = %f" % (2*valmodel,ndof,2*valmodel/float(ndof)))
 
 errsmodel = np.sqrt(np.diag(covmodel)).reshape((nEtaBins,nModelParms))
 

@@ -114,9 +114,12 @@ def makeMCTruthDataset(data, etas, pts, masses):
     datasetMCTruth = np.array([np.concatenate((data['eta1'],data['eta2']),axis=None),np.concatenate((charge1*data['pt1'],charge2*data['pt2']),axis=None),np.concatenate((data['res1'], data['res2']),axis=None)])
     histoMCTruth, edges = np.histogramdd(datasetMCTruth.T, bins = [etas,pts,masses])
 
+    good_idx = np.nonzero(np.sum(histoMCTruth,axis=-1)>1000.)
+    histoMCTruth = histoMCTruth[good_idx]
+
     #compute mean in each bin (integrating over mass) for pt-dependent terms
     massesfull = np.array([masses[0],masses[-1]])
-    histoden = np.histogramdd(datasetMCTruth.T, bins = [etas,pts,massesfull])[0]
+    histoden = np.histogramdd(datasetMCTruth.T, bins = [etas,pts,massesfull])[0][good_idx]
 
     pt = datasetMCTruth[1]
     eta = datasetMCTruth[0]
@@ -144,7 +147,7 @@ def makeMCTruthDataset(data, etas, pts, masses):
 
     means = []
     for term in terms:
-        histoterm = np.histogramdd(datasetMCTruth.T, bins = [etas,pts,massesfull], weights=term)[0]
+        histoterm = np.histogramdd(datasetMCTruth.T, bins = [etas,pts,massesfull], weights=term)[0][good_idx]
         ret = histoterm/histoden
         #remove spurious mass dimension
         ret = np.squeeze(ret, axis=-1)
@@ -157,6 +160,7 @@ def makeMCTruthDataset(data, etas, pts, masses):
     pkg['dataset'] = histoMCTruth
     pkg['edges'] = edges
     pkg['binCenters'] = mean
+    pkg['good_idx'] = good_idx
 
     return pkg
 
@@ -294,14 +298,15 @@ print("good_idx size", good_idx[0].shape)
 
 histoGen = histoGen[good_idx]
 
-res = np.linspace(0.95, 1.05, nMassBins+1, dtype='float64')
+#modify the pt vector to take account of the charge
+
+ptsNeg = np.flip(-1*pts)
+pts = np.concatenate((ptsNeg,pts), axis=None)
+
+print(pts, "mctruth")
+
+res = np.linspace(0.9, 1.1, nMassBins+1, dtype='float64')
 pkgTruth = makeMCTruthDataset(dataMC,etas,pts,res)
-
-good_idx2 = np.nonzero(np.sum(pkgTruth['dataset'],axis=-1)>1000.)
-print("good_idx2 size", good_idx2[0].shape)
-
-pkgTruth['dataset'] = pkgTruth['dataset'][good_idx2]
-pkgTruth['good_idx'] = good_idx2
 
 with open(pklfileGen, 'wb') as filehandler:
     pickle.dump(histoGen, filehandler, protocol=pickle.HIGHEST_PROTOCOL)

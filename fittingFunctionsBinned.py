@@ -118,7 +118,7 @@ def gaussianpdf(scale, sigma, masses):
     #print sigma_ext.shape, 'sigma pdf'
     #print valsReco.shape, 'valsReco pdf'
 
-    pdf = np.exp(-np.square(valsReco-scale_ext)/np.square(2.*sigma_ext))
+    pdf = np.exp(-0.5*np.square((valsReco-scale_ext)/sigma_ext))
     I = np.sum(massWidth*pdf, axis=-1, keepdims=True)
     pdf = pdf/np.where(pdf>0.,I,1.)
 
@@ -172,7 +172,7 @@ def scaleSqFromModelParsSingleMu(A, e, M, etas, binCenters1, good_idx):
     
     term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1+M[good_idx[0]]*coeffM1
     
-    scaleSq = (1.+term1)
+    scaleSq = np.square(1.+term1)
         
     return scaleSq
 
