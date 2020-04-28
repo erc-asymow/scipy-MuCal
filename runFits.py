@@ -163,7 +163,7 @@ runCalibration = args.runCalibration
 fitMCtruth = args.fitMCtruth
 
 
-fileJ = open("calInputJMC_48etaBins_5ptBins.pkl", "rb")
+fileJ = open("calInputJMC_48etaBins_30ptBins.pkl", "rb")
 pkgJ = pickle.load(fileJ)
 
 datasetJ = pkgJ['dataset']
@@ -174,7 +174,7 @@ binCenters1J = pkgJ['binCenters1']
 binCenters2J = pkgJ['binCenters2']
 good_idxJ = pkgJ['good_idx']
 
-fileZ = open("calInputZMC_48etaBins_5ptBins.pkl", "rb")
+fileZ = open("calInputZMC_48etaBins_30ptBins.pkl", "rb")
 pkgZ = pickle.load(fileZ)
 
 datasetZ = pkgZ['dataset']
@@ -194,40 +194,40 @@ if isJ:
     good_idx= good_idxJ
 
 if fitMCtruth:
-    fileJ = open("calInputJMCtruth_48etaBins_30ptBins.pkl", "rb")
+    fileJ = open("calInputJMCtruth_48etaBins_80ptBins.pkl", "rb")
     pkgJtruth = pickle.load(fileJ)
     datasetJ = pkgJtruth['dataset']
     
-    fileZ = open("calInputZMCtruth_48etaBins_30ptBins.pkl", "rb")
+    fileZ = open("calInputZMCtruth_48etaBins_80ptBins.pkl", "rb")
     pkgZtruth = pickle.load(fileZ)
     datasetZ = pkgZtruth['dataset']
 
     #merge datasets and pts
-    #dataset = np.concatenate((datasetJ,datasetZ), axis=0)
-    #pts = np.concatenate((ptsJ,ptsZ),axis=0)
-    #masses = pkgJtruth['edges'][-1]
-
-    #good_idxJ = pkgJtruth['good_idx']
-    #good_idxZ = pkgZtruth['good_idx']
-    #total = good_idxJ + good_idxZ
-    #print len(total), total[0].shape,total[3].shape
-    #good_idx =(np.concatenate((total[0],total[2]),axis=0),np.concatenate((total[1],total[3]),axis=0))
-    #binCenters = np.concatenate((pkgJtruth['binCenters'],pkgZtruth['binCenters']),axis=0)
-    dataset = datasetJ
+    dataset = np.concatenate((datasetJ,datasetZ), axis=0)
+    pts = np.concatenate((ptsJ,ptsZ),axis=0)
     masses = pkgJtruth['edges'][-1]
-    good_idx = pkgJtruth['good_idx']
-    binCenters = pkgJtruth['binCenters']
-    pts = pkgJtruth['edges'][1]
+
+    good_idxJ = pkgJtruth['good_idx']
+    good_idxZ = pkgZtruth['good_idx']
+    total = good_idxJ + good_idxZ
+    print(len(total), total[0].shape,total[3].shape)
+    good_idx =(np.concatenate((total[0],total[2]),axis=0),np.concatenate((total[1],total[3]),axis=0))
+    binCenters = np.concatenate((pkgJtruth['binCenters'],pkgZtruth['binCenters']),axis=0)
+    #dataset = datasetJ
+    #masses = pkgJtruth['edges'][-1]
+    #good_idx = pkgJtruth['good_idx']
+    #binCenters = pkgJtruth['binCenters']
+    #pts = pkgJtruth['edges'][1]
 
 
 nEtaBins = len(etas)-1
-nPtBins = len(pts)-1
+#nPtBins = len(pts)-1
 nBins = dataset.shape[0]
 
-print(pts)
+#print(pts)
 print(nBins)
 
-filegen = open("calInput{}MCgen_48etaBins_5ptBins.pkl".format('J' if isJ else 'Z'), "rb")
+filegen = open("calInput{}MCgen_48etaBins_30ptBins.pkl".format('J' if isJ else 'Z'), "rb")
 datasetgen = pickle.load(filegen)
 
 scale = np.ones((nBins,),dtype='float64')
@@ -307,9 +307,17 @@ print(sigmaBinned, '+/-', sigmaErrorBinned)
 
 ###### begin paramters fit
 
-nModelParms = 5
+nModelParms = 6
+
+#A = np.zeros((nEtaBins),dtype=np.float64)
+#e = np.zeros((nEtaBins),dtype=np.float64)
+#M = np.zeros((nEtaBins),dtype=np.float64)
+#W = np.zeros((nEtaBins),dtype=np.float64)
+#a = 1e-6*np.ones((nEtaBins),dtype=np.float64)
+#c = 10e-9*np.ones((nEtaBins),dtype=np.float64)
 
 xmodel = np.zeros((nEtaBins,nModelParms),dtype=np.float64)
+#xmodel = np.stack((A,e,M,W,a,c),axis=-1)
 
 if fitMCtruth:
     chi2 = chi2LBins(xmodel, scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters,good_idx)
@@ -353,10 +361,10 @@ print("chi2/dof = %f/%d = %f" % (2*valmodel,ndof,2*valmodel/float(ndof)))
 
 errsmodel = np.sqrt(np.diag(covmodel)).reshape((nEtaBins,nModelParms))
 
-A,e,M,a,b,c,d = modelParsFromParVector(xmodel)
+A,e,M,W,a,b,c,d = modelParsFromParVector(xmodel)
 
 if fitMCtruth:
-    scaleSqModel = scaleSqFromModelParsSingleMu(A, e, M, etas, binCenters, good_idx)
+    scaleSqModel = scaleSqFromModelParsSingleMu(A, e, M, W, etas, binCenters, good_idx)
     sigmaSqModel = sigmaSqFromModelParsSingleMu(a, b, c, d, etas, binCenters, good_idx)
 else:
     scaleSqModel = scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx)
@@ -382,10 +390,10 @@ plt.pcolor(corr, cmap='jet', vmin=-1, vmax=1)
 plt.colorbar()
 plt.savefig("corrMC.pdf")
 
-if fitMCtruth:
-    plotsSingleMu(scaleBinned,sigmaBinned,dataset,masses)
-else:
-    plotsBkg(scaleBinned,sigmaBinned,fbkg,slope,dataset,datasetgen,masses,isJ,etas, binCenters1, binCenters2, good_idx)
+#if fitMCtruth:
+    #plotsSingleMu(scaleBinned,sigmaBinned,dataset,masses)
+#else:
+    #plotsBkg(scaleBinned,sigmaBinned,fbkg,slope,dataset,datasetgen,masses,isJ,etas, binCenters1, binCenters2, good_idx)
 
 print("computing scales and errors:")
 
@@ -394,15 +402,17 @@ ndata = np.sum(dataset,axis=-1)
 Aerr = errsmodel[:,0]
 eerr = errsmodel[:,1]
 Merr = errsmodel[:,2]
-aerr = errsmodel[:,3]
-cerr = errsmodel[:,4]
-berr = errsmodel[:,5]
-derr = errsmodel[:,6]
+Werr = errsmodel[:,3]
+aerr = errsmodel[:,4]
+cerr = errsmodel[:,5]
+berr = errsmodel[:,6]
+derr = errsmodel[:,7]
 
 etaarr = onp.array(etas.tolist())
 hA = ROOT.TH1D("A", "A", nEtaBins, etaarr)
 he = ROOT.TH1D("e", "e", nEtaBins, etaarr)
 hM = ROOT.TH1D("M", "M", nEtaBins, etaarr)
+hW = ROOT.TH1D("W", "W", nEtaBins, etaarr)
 ha = ROOT.TH1D("a", "a", nEtaBins, etaarr)
 hc = ROOT.TH1D("c", "c", nEtaBins, etaarr)
 hb = ROOT.TH1D("b", "b", nEtaBins, etaarr)
@@ -411,6 +421,7 @@ hd = ROOT.TH1D("d", "d", nEtaBins, etaarr)
 hA = array2hist(A, hA, Aerr)
 he = array2hist(e, he, eerr)
 hM = array2hist(M, hM, Merr)
+hW = array2hist(W, hW, Werr)
 ha = array2hist(a, ha, aerr)
 hc = array2hist(c, hc, cerr)
 hb = array2hist(b, hb, berr)
@@ -419,12 +430,14 @@ hd = array2hist(d, hd, derr)
 hA.GetYaxis().SetTitle('b field correction')
 he.GetYaxis().SetTitle('material correction')
 hM.GetYaxis().SetTitle('alignment correction')
+hW.GetYaxis().SetTitle('charge-independent "alignment" correction')
 ha.GetYaxis().SetTitle('material correction (resolution) a^2')
 hc.GetYaxis().SetTitle('hit position (resolution) c^2')
 
 hA.GetXaxis().SetTitle('#eta')
 he.GetXaxis().SetTitle('#eta')
 hM.GetXaxis().SetTitle('#eta')
+hW.GetXaxis().SetTitle('#eta')
 ha.GetXaxis().SetTitle('#eta')
 hc.GetXaxis().SetTitle('#eta')
 
@@ -473,6 +486,7 @@ f.cd()
 hA.Write()
 he.Write()
 hM.Write()
+hW.Write()
 ha.Write()
 hc.Write()
 hb.Write()

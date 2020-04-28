@@ -32,6 +32,8 @@ config.update('jax_enable_x64', True)
 def pmin(f, x, args = [], doParallel=True):
     
     tol = np.sqrt(np.finfo('float64').eps)
+    #tol = 1e-8
+    #tol = 1e-10
     #tol = np.finfo('float64').eps
     #edmtol = np.sqrt(np.finfo('float64').eps)
     maxiter = int(100e3)

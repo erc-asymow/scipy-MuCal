@@ -30,9 +30,9 @@ RDF = ROOT.ROOT.RDataFrame
 def makeData(inputFile, genMass=False, smearedMass=False, mcTruth=False, isData=False):
 
     if isJ:
-        cut = 'pt1>4.3 && pt2>4.3 && pt1<25. && pt2<25.'# && mass>2.9 && mass<3.3'
+        cut = 'mcpt1>4.3 && mcpt2>4.3 && mcpt1<25. && mcpt2<25.'# && mass>2.9 && mass<3.3'
     else:
-        cut = 'pt1>20.0 && pt2>20.0 && pt1<100. && pt2<100.'#&& mass>75. && mass<115.'
+        cut = 'mcpt1>20.0 && mcpt2>20.0 && mcpt1<100. && mcpt2<100.'#&& mass>75. && mass<115.'
     if restrictToBarrel:
         cut+= '&& fabs(eta1)<0.8 && fabs(eta2)<0.8'
     else:
@@ -84,7 +84,7 @@ def makeData(inputFile, genMass=False, smearedMass=False, mcTruth=False, isData=
     if smearedMass:
         mass = 'smearedgenMass'
     
-    cols=[mass,'eta1', 'pt1', 'phi1', 'eta2', 'pt2', 'phi2']
+    cols=[mass,'eta1', 'mcpt1', 'phi1', 'eta2', 'mcpt2', 'phi2']
     
     if genMass:
         cols.append('genMass')
@@ -100,7 +100,7 @@ def makeData(inputFile, genMass=False, smearedMass=False, mcTruth=False, isData=
 
 def makeGenDataset(data, etas, pts, masses):
 
-    datasetGen = np.array([data['eta1'],data['eta2'],data['pt1'],data['pt2'],data['genMass']])
+    datasetGen = np.array([data['eta1'],data['eta2'],data['mcpt1'],data['mcpt2'],data['genMass']])
     histoGen, edges = np.histogramdd(datasetGen.T, bins = [etas,etas,pts,pts,masses])
 
     return histoGen
@@ -111,10 +111,10 @@ def makeMCTruthDataset(data, etas, pts, masses):
     charge1 = np.ones_like(data['eta1'])
     charge2 = -np.ones_like(data['eta1'])
 
-    datasetMCTruth = np.array([np.concatenate((data['eta1'],data['eta2']),axis=None),np.concatenate((charge1*data['pt1'],charge2*data['pt2']),axis=None),np.concatenate((data['res1'], data['res2']),axis=None)])
+    datasetMCTruth = np.array([np.concatenate((data['eta1'],data['eta2']),axis=None),np.concatenate((charge1*data['mcpt1'],charge2*data['mcpt2']),axis=None),np.concatenate((data['res1'], data['res2']),axis=None)])
     histoMCTruth, edges = np.histogramdd(datasetMCTruth.T, bins = [etas,pts,masses])
 
-    good_idx = np.nonzero(np.sum(histoMCTruth,axis=-1)>1000.)
+    good_idx = np.nonzero(np.sum(histoMCTruth,axis=-1)>100.)
     histoMCTruth = histoMCTruth[good_idx]
 
     #compute mean in each bin (integrating over mass) for pt-dependent terms
@@ -171,7 +171,7 @@ def makepkg(data, etas, pts, masses, good_idx, smearedMass=False):
     if smearedMass:
         mass = 'smearedgenMass'
 
-    dataset = np.array([data['eta1'],data['eta2'],data['pt1'],data['pt2'],data[mass]])
+    dataset = np.array([data['eta1'],data['eta2'],data['mcpt1'],data['mcpt2'],data[mass]])
     
     histo, edges = np.histogramdd(dataset.T, bins = [etas,etas,pts,pts,masses])
     histo = histo[good_idx]
@@ -241,8 +241,10 @@ else:
 
 
 nEtaBins = 48
-nPtBins = 30
+nPtBins = 5
 nMassBins = 100
+nPtBinsMCTruth = 80
+
 
 if restrictToBarrel:
     etas = np.linspace(-0.8, 0.8, nEtaBins+1, dtype='float64')
@@ -274,21 +276,22 @@ pklfileMC+='.pkl'
 if not isJ:
     pklfileGen = 'calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1)
     filehandler = open('calInputZMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1), 'wb')
-    pklfileMCtruth = 'calInputZMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1)
-    filehandler = open('calInputZMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1), 'wb')
+    pklfileMCtruth = 'calInputZMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, nPtBinsMCTruth)
+    filehandler = open('calInputZMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, nPtBinsMCTruth), 'wb')
 else:
     pklfileGen = 'calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1)
     filehandler = open('calInputJMCgen_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1), 'wb')
-    pklfileMCtruth = 'calInputJMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1)
-    filehandler = open('calInputJMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, len(ptquantiles)-1), 'wb')
+    pklfileMCtruth = 'calInputJMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, nPtBinsMCTruth)
+    filehandler = open('calInputJMCtruth_{}etaBins_{}ptBins.pkl'.format(len(etas)-1, nPtBinsMCTruth), 'wb')
 
 print(pklfileData, pklfileMC)
 #print(pkgD['dataset'][0][0] - pkgMC['dataset'][0])
 
 dataMC = makeData(inputFileMC, genMass=True, smearedMass=smearedMC, mcTruth = True)
 
+
 print(ptquantiles)
-pts = np.quantile(np.concatenate((dataMC['pt1'],dataMC['pt2']),axis=0),ptquantiles)
+pts = np.quantile(np.concatenate((dataMC['mcpt1'],dataMC['mcpt2']),axis=0),ptquantiles)
 print(pts)
 
 histoGen = makeGenDataset(dataMC,etas,pts,masses)
@@ -300,13 +303,18 @@ histoGen = histoGen[good_idx]
 
 #modify the pt vector to take account of the charge
 
-ptsNeg = np.flip(-1*pts)
-pts = np.concatenate((ptsNeg,pts), axis=None)
+if isJ:
+    mcpts = np.linspace(4.3,25, nPtBinsMCTruth+1, dtype='float64')
+else:
+    mcpts = np.linspace(20.,100., nPtBinsMCTruth+1, dtype='float64')
+    
+ptsNeg = np.flip(-1*mcpts)
+mcpts = np.concatenate((ptsNeg,mcpts), axis=None)
 
 print(pts, "mctruth")
 
 res = np.linspace(0.9, 1.1, nMassBins+1, dtype='float64')
-pkgTruth = makeMCTruthDataset(dataMC,etas,pts,res)
+pkgTruth = makeMCTruthDataset(dataMC,etas,mcpts,res)
 
 with open(pklfileGen, 'wb') as filehandler:
     pickle.dump(histoGen, filehandler, protocol=pickle.HIGHEST_PROTOCOL)

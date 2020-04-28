@@ -165,14 +165,15 @@ def scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx, line
         
     return scaleSq
 
-def scaleSqFromModelParsSingleMu(A, e, M, etas, binCenters1, good_idx):
+def scaleSqFromModelParsSingleMu(A, e, M, W, etas, binCenters1, good_idx):
     
     coeffe1 = binCenters1[...,1]
     coeffM1 = binCenters1[...,0]
     
-    term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1+M[good_idx[0]]*coeffM1
+    term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1+M[good_idx[0]]*coeffM1 + W[good_idx[0]]*np.abs(coeffM1)
     
     scaleSq = np.square(1.+term1)
+    #scaleSq = 1. + 2.*term1
         
     return scaleSq
 
@@ -223,7 +224,7 @@ def chi2LBins(x, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas,*args):
     # return the gaussian likelihood (ie 0.5*chi2) from the scales and sigmas squared computed from the
     # physics model parameters vs the values and covariance matrix from the binned fit
     
-    A,e,M,a,b,c,d = modelParsFromParVector(x)
+    A,e,M,W,a,b,c,d = modelParsFromParVector(x)
 
     if len(args)==3:
 
@@ -231,14 +232,14 @@ def chi2LBins(x, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas,*args):
         binCenters2=args[1]
         good_idx=args[2]
 
-        scaleSqModel = scaleSqFromModelPars(A,e,M,etas, binCenters1, binCenters2, good_idx, linearize=False)
+        scaleSqModel = scaleSqFromModelPars(A,e,M,W,etas, binCenters1, binCenters2, good_idx, linearize=False)
         sigmaSqModel = sigmaSqFromModelPars(a,b,c,d,etas, binCenters1, binCenters2, good_idx)
 
     else:
 
         binCenters1=args[0]
         good_idx=args[1]
-        scaleSqModel = scaleSqFromModelParsSingleMu(A,e,M,etas, binCenters1, good_idx)
+        scaleSqModel = scaleSqFromModelParsSingleMu(A,e,M,W,etas, binCenters1, good_idx)
         sigmaSqModel = sigmaSqFromModelParsSingleMu(a,b,c,d,etas, binCenters1, good_idx)
     
     scaleSqSigmaSqModel = np.stack((scaleSqModel,sigmaSqModel), axis=-1)
@@ -278,18 +279,32 @@ def chi2SumBins(x, binScaleSq, binSigmaSq, covScaleSqSigmaSq, etas, binCenters1,
                         
 
 def modelParsFromParVector(x):
-    x = x.reshape((-1,5))
+    x = x.reshape((-1,6))
     
     A = x[...,0]
     e = x[...,1]
     M = x[...,2]
-    a = x[...,3]
-    c = x[...,4]
+    W = x[...,3]
+    a = x[...,4]
+    c = x[...,5]
 
+
+    #W = np.zeros_like(A)
+    
+    #A = 1e-2*np.tanh(A)
+    
+    #A = 1e-4*A
+    #e = 1e-2*e
+    #M = 1e-2*M
+    #W = 1e-2*W
+    #a = 1e-6*a
+    #c = 1e-9*c
+
+    
     b = np.zeros_like(a)
     d = 370.*np.ones_like(a)
     
-    return A,e,M,a,b,c,d
+    return A,e,M,W,a,b,c,d
 
 def scaleSigmaFromModelParVector(x, etas, binCenters1, binCenters2, good_idx):
     A,e,M,a,b,c,d = modelParsFromParVector(x)
@@ -356,9 +371,9 @@ def scaleSigmaFromBinPars(x):
     #(since the bounds are reached only asymptotically, the fit will not converge well
     #if any of the parameters actually lie outside this region, these are just designed to protect
     #against pathological phase space during minimization)
-    scale = 1. + 1e-2*np.tanh(scale)
+    scale = 1. + 1e-1*np.tanh(scale)
     #sigma = 5e-3*np.exp(2.*np.tanh(sigma))
-    sigma = 0.01*np.exp(2.*np.tanh(sigma))
+    sigma = 0.01*np.exp(3.*np.tanh(sigma))
     
     return scale, sigma
     
@@ -488,7 +503,7 @@ def plotsSingleMu(scale,sigma,dataset,masses):
 
     nBins = dataset.shape[0]
     ndata = np.sum(dataset,axis=-1)
-    print ndata.shape    
+    print(ndata.shape)
     minR = masses[0]
     maxR = masses[-1]
     massWidth = masses[1:]-masses[:-1]
@@ -497,7 +512,7 @@ def plotsSingleMu(scale,sigma,dataset,masses):
     masseslow = masses[:-1]
     
     pdf = ndata[:,np.newaxis]*massWidth*gaussianpdf(scale, sigma, masses)
-    print gaussianpdf(scale, sigma, masses)
+    print(gaussianpdf(scale, sigma, masses))
 
 
     #for ibin in range(nBins):
