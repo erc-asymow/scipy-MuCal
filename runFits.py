@@ -28,7 +28,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-from fittingFunctionsBinned import scaleFromModelPars, splitTransformPars, nllBinsFromBinPars, chi2LBins, scaleSqSigmaSqFromBinsPars,scaleSqFromModelPars,sigmaSqFromModelPars,modelParsFromParVector,scaleSigmaFromModelParVector, plotsBkg, bkgModelFromBinPars, nllBinsFromBinParsRes, plotsSingleMu, scaleSqFromModelParsSingleMu, sigmaSqFromModelParsSingleMu, nllBinsFromSignalBinPars
+from fittingFunctionsBinned import scaleFromModelPars, splitTransformPars, nllBinsFromBinPars, chi2LBins, scaleSqSigmaSqFromBinsPars,scaleSqFromModelPars,sigmaSqFromModelPars,modelParsFromParVector,scaleSigmaFromModelParVector, plotsBkg, bkgModelFromBinPars, nllBinsFromBinParsRes, plotsSingleMu, scaleFromModelParsSingleMu, sigmaSqFromModelParsSingleMu, nllBinsFromSignalBinPars, scaleSigmaFromModelParVectorSingle,scaleSigmaSqFromBinsPars
 from obsminimization import pmin
 import argparse
 import functools
@@ -194,11 +194,11 @@ if isJ:
     good_idx= good_idxJ
 
 if fitMCtruth:
-    fileJ = open("calInputJMCtruth_48etaBins_80ptBins.pkl", "rb")
+    fileJ = open("calInputJMCtruth_48etaBins_20ptBins.pkl", "rb")
     pkgJtruth = pickle.load(fileJ)
     datasetJ = pkgJtruth['dataset']
     
-    fileZ = open("calInputZMCtruth_48etaBins_80ptBins.pkl", "rb")
+    fileZ = open("calInputZMCtruth_48etaBins_20ptBins.pkl", "rb")
     pkgZtruth = pickle.load(fileZ)
     datasetZ = pkgZtruth['dataset']
 
@@ -206,19 +206,21 @@ if fitMCtruth:
     dataset = np.concatenate((datasetJ,datasetZ), axis=0)
     pts = np.concatenate((ptsJ,ptsZ),axis=0)
     masses = pkgJtruth['edges'][-1]
-
     good_idxJ = pkgJtruth['good_idx']
     good_idxZ = pkgZtruth['good_idx']
     total = good_idxJ + good_idxZ
     print(len(total), total[0].shape,total[3].shape)
     good_idx =(np.concatenate((total[0],total[2]),axis=0),np.concatenate((total[1],total[3]),axis=0))
     binCenters = np.concatenate((pkgJtruth['binCenters'],pkgZtruth['binCenters']),axis=0)
+    
+    
     #dataset = datasetJ
     #masses = pkgJtruth['edges'][-1]
     #good_idx = pkgJtruth['good_idx']
     #binCenters = pkgJtruth['binCenters']
     #pts = pkgJtruth['edges'][1]
 
+print("masses debug", masses, len(masses))
 
 nEtaBins = len(etas)-1
 #nPtBins = len(pts)-1
@@ -252,7 +254,7 @@ if fitMCtruth:
         #invert to get the hessian
         cov = np.linalg.inv(hess(x,dataset,))
         #compute the jacobian for scale and sigma squared wrt internal fit parameters
-        jacscalesq, jacsigmasq = jax.jacfwd(scaleSqSigmaSqFromBinsPars)(x)
+        jacscalesq, jacsigmasq = jax.jacfwd(scaleSigmaSqFromBinsPars)(x)
         jac = np.stack((jacscalesq,jacsigmasq),axis=-1)
         #compute covariance matrix for scalesq and sigmasq
         covscalesigmasq = np.matmul(jac.T,np.matmul(cov,jac))
@@ -299,7 +301,8 @@ scaleSqSigmaSqErrorsBinned = np.sqrt(np.diagonal(hCovScaleSqSigmaSqBinned, axis1
 scaleSqErrorBinned = scaleSqSigmaSqErrorsBinned[:,0]
 sigmaSqErrorBinned = scaleSqSigmaSqErrorsBinned[:,1]
 
-scaleErrorBinned = 0.5*scaleSqErrorBinned/scaleBinned
+#scaleErrorBinned = 0.5*scaleSqErrorBinned/scaleBinned
+scaleErrorBinned = scaleSqErrorBinned
 sigmaErrorBinned = 0.5*sigmaSqErrorBinned/sigmaBinned
 
 print(scaleBinned, '+/-', scaleErrorBinned)
@@ -307,27 +310,41 @@ print(sigmaBinned, '+/-', sigmaErrorBinned)
 
 ###### begin paramters fit
 
-nModelParms = 6
+nModelParms = 8
+
+A = np.zeros((nEtaBins),dtype=np.float64)
+e = np.zeros((nEtaBins),dtype=np.float64)
+M = np.zeros((nEtaBins),dtype=np.float64)
+W = np.ones((nEtaBins),dtype=np.float64)
+a = 1e-6*np.ones((nEtaBins),dtype=np.float64)
+c = 10e-9*np.ones((nEtaBins),dtype=np.float64)
+b = np.zeros((nEtaBins),dtype=np.float64)
+d = 3.7*np.ones((nEtaBins),dtype=np.float64)
+
 
 #A = np.zeros((nEtaBins),dtype=np.float64)
 #e = np.zeros((nEtaBins),dtype=np.float64)
 #M = np.zeros((nEtaBins),dtype=np.float64)
-#W = np.zeros((nEtaBins),dtype=np.float64)
-#a = 1e-6*np.ones((nEtaBins),dtype=np.float64)
-#c = 10e-9*np.ones((nEtaBins),dtype=np.float64)
+#W = np.ones((nEtaBins),dtype=np.float64)
+#a = np.ones((nEtaBins),dtype=np.float64)
+#c = np.ones((nEtaBins),dtype=np.float64)
+#b = np.zeros((nEtaBins),dtype=np.float64)
+#d = 2.*np.ones((nEtaBins),dtype=np.float64)
 
-xmodel = np.zeros((nEtaBins,nModelParms),dtype=np.float64)
-#xmodel = np.stack((A,e,M,W,a,c),axis=-1)
+#xmodel = np.zeros((nEtaBins,nModelParms),dtype=np.float64)
+xmodel = np.stack((A,e,M,W,a,c,b,d),axis=-1)
+#xmodel = np.stack((A,e,M,a,c,b,d),axis=-1)
 
 if fitMCtruth:
-    chi2 = chi2LBins(xmodel, scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters,good_idx)
+    chi2 = chi2LBins(xmodel, scaleBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters,good_idx)
 else:
     chi2 = chi2LBins(xmodel, scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters1, binCenters2, good_idx)
 
 print(chi2)
 
 if fitMCtruth:
-    xmodel = pmin(chi2LBins, xmodel.flatten(), args=(scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters,good_idx), doParallel=False)
+    xmodel = pmin(chi2LBins, xmodel.flatten(), args=(scaleBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters,good_idx), doParallel=False)
+    pass
 else:
     xmodel = pmin(chi2LBins, xmodel.flatten(), args=(scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx), doParallel=False)
 
@@ -337,8 +354,8 @@ fgchi2 = jax.jit(jax.value_and_grad(chi2LBins))
 hchi2 = jax.jit(jax.hessian(chi2LBins))
 
 if fitMCtruth:
-    chi2,chi2grad = fgchi2(xmodel.flatten(), scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters, good_idx)
-    chi2hess = hchi2(xmodel.flatten(), scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters, good_idx)
+    chi2,chi2grad = fgchi2(xmodel.flatten(), scaleBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters, good_idx)
+    chi2hess = hchi2(xmodel.flatten(), scaleBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters, good_idx)
 else:
     chi2,chi2grad = fgchi2(xmodel.flatten(), scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx)
     chi2hess = hchi2(xmodel.flatten(), scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx)
@@ -348,7 +365,7 @@ covmodel = np.linalg.inv(chi2hess)
 invhess = covmodel
 
 if fitMCtruth:
-    valmodel,gradmodel = fgchi2(xmodel.flatten(), scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters, good_idx)
+    valmodel,gradmodel = fgchi2(xmodel.flatten(), scaleBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas,binCenters, good_idx)
 else:
     valmodel,gradmodel = fgchi2(xmodel.flatten(), scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx)
 
@@ -364,8 +381,9 @@ errsmodel = np.sqrt(np.diag(covmodel)).reshape((nEtaBins,nModelParms))
 A,e,M,W,a,b,c,d = modelParsFromParVector(xmodel)
 
 if fitMCtruth:
-    scaleSqModel = scaleSqFromModelParsSingleMu(A, e, M, W, etas, binCenters, good_idx)
+    scaleModel = scaleFromModelParsSingleMu(A, e, M, W, a,b,c,d,etas, binCenters, good_idx)
     sigmaSqModel = sigmaSqFromModelParsSingleMu(a, b, c, d, etas, binCenters, good_idx)
+    scaleSqModel = np.square(scaleModel)
 else:
     scaleSqModel = scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx)
     sigmaSqModel = sigmaSqFromModelPars(a, b, c, d, etas, binCenters1, binCenters2, good_idx)
@@ -407,6 +425,11 @@ aerr = errsmodel[:,4]
 cerr = errsmodel[:,5]
 berr = errsmodel[:,6]
 derr = errsmodel[:,7]
+
+#aerr = errsmodel[:,3]
+#cerr = errsmodel[:,4]
+#berr = errsmodel[:,5]
+#derr = errsmodel[:,6]
 
 etaarr = onp.array(etas.tolist())
 hA = ROOT.TH1D("A", "A", nEtaBins, etaarr)
@@ -450,7 +473,34 @@ sigmaplotBinned = array2hist(sigmaBinned, sigmaplotBinned, sigmaErrorBinned)
 
 plots = [scaleplotBinned,sigmaplotBinned]
 
-if not fitMCtruth:
+if fitMCtruth:
+    scalejac,sigmajac = jax.jit(jax.jacfwd(scaleSigmaFromModelParVectorSingle))(xmodel.flatten(),etas, binCenters, good_idx)
+
+    scalesigmajac = np.stack((scalejac,sigmajac),axis=1)
+    scalesigmajac = np.reshape(scalesigmajac, (-1,covmodel.shape[0]))
+    covScaleSigmaModel = np.matmul(scalesigmajac,np.matmul(covmodel,scalesigmajac.T))
+    scaleSigmaErrsModel = np.sqrt(np.diag(covScaleSigmaModel))
+    scaleSigmaErrsModel = np.reshape(scaleSigmaErrsModel, (-1,2))
+
+    print(scaleModel.shape, scaleSigmaErrsModel[:,0].shape)
+    scaleplotModel = ROOT.TH1D("scaleModel", "scale", nBins, onp.linspace(0, nBins, nBins+1))
+    scaleplotModel = array2hist(scaleModel, scaleplotModel, scaleSigmaErrsModel[:,0])
+
+    sigmaplotModel = ROOT.TH1D("sigmaModel", "sigma", nBins, onp.linspace(0, nBins, nBins+1))
+    sigmaplotModel = array2hist(sigmaModel, sigmaplotModel, scaleSigmaErrsModel[:,1])
+
+    plots.append(scaleplotModel)
+    plots.append(sigmaplotModel)
+
+    #for ibin in range(nBins):
+        #ieta = good_idx[0][ibin]
+        #ipt = good_idx[1][ibin]
+        #for plot in plots:
+            #plot.GetXaxis().SetBinLabel(ibin+1,'eta_{}_pt_{}'.format(ieta,ipt))
+
+    #for plot in plots:
+        #plot.GetXaxis().LabelsOption("v")    
+else:
     scalejac,sigmajac = jax.jit(jax.jacfwd(scaleSigmaFromModelParVector))(xmodel.flatten(),etas, binCenters1, binCenters2, good_idx)
 
     scalesigmajac = np.stack((scalejac,sigmajac),axis=1)

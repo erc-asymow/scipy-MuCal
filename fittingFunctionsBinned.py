@@ -1,4 +1,5 @@
 import jax.numpy as np
+import jax.scipy as scipy
 import jax
 from jax import grad, hessian, jacobian, config, random
 from jax.scipy.special import erf
@@ -114,11 +115,36 @@ def gaussianpdf(scale, sigma, masses):
     scale_ext = np.expand_dims(scale,-1)
     sigma_ext = np.expand_dims(sigma,-1)
 
+
+    #I = scipy.special.ndtr((masses[-1]-scale)/sigma) - scipy.special.ndtr((masses[0]-scale)/sigma)
+    #I = np.expand_dims(I,-1)
+    
     #print scale_ext.shape, 'scale pdf'
     #print sigma_ext.shape, 'sigma pdf'
     #print valsReco.shape, 'valsReco pdf'
 
-    pdf = np.exp(-0.5*np.square((valsReco-scale_ext)/sigma_ext))
+    #pdf = np.exp(-0.5*np.square((valsReco-scale_ext)/sigma_ext))
+    #pdf = np.exp(-0.5*np.square((valsReco-scale_ext)/sigma_ext))/sigma_ext/np.sqrt(2.*np.pi)
+    
+    #pdf = np.exp(-0.5*np.square((valsReco-scale_ext)/sigma_ext))
+    
+    #alpha = 5.
+    #alpha1 = alpha
+    #alpha2 = alpha
+    alpha1 = 3.
+    alpha2 = 3.
+    
+    A1 = np.exp(0.5*alpha1**2)
+    A2 = np.exp(0.5*alpha2**2)
+    
+    t = (valsReco - scale_ext)/sigma_ext
+    
+    pdfcore = np.exp(-0.5*t**2)
+    pdfleft = A1*np.exp(alpha1*t)
+    pdfright = A2*np.exp(-alpha2*t)
+    
+    pdf = np.where(t<-alpha1, pdfleft, np.where(t<alpha2, pdfcore, pdfright))
+    
     I = np.sum(massWidth*pdf, axis=-1, keepdims=True)
     pdf = pdf/np.where(pdf>0.,I,1.)
 
@@ -165,17 +191,47 @@ def scaleSqFromModelPars(A, e, M, etas, binCenters1, binCenters2, good_idx, line
         
     return scaleSq
 
-def scaleSqFromModelParsSingleMu(A, e, M, W, etas, binCenters1, good_idx):
+def scaleFromModelParsSingleMu(A, e, M, W,a,b,c,d, etas, binCenters1, good_idx):
     
     coeffe1 = binCenters1[...,1]
     coeffM1 = binCenters1[...,0]
+    pt2L4 = binCenters1[...,2]
+    invpt2L2 = binCenters1[...,3]
+    L2 = binCenters1[...,4]
+    corr = binCenters1[...,5]
     
-    term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1+M[good_idx[0]]*coeffM1 + W[good_idx[0]]*np.abs(coeffM1)
+    etac = 0.5*(etas[1:] + etas[:-1])
+    barrelsign = np.where(np.abs(etac)<1.4, 0.,-1.)
+    barrelsign = barrelsign[good_idx[0]]
     
-    scaleSq = np.square(1.+term1)
-    #scaleSq = 1. + 2.*term1
-        
-    return scaleSq
+    #term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1+M[good_idx[0]]*coeffM1 + W[good_idx[0]]*np.abs(coeffM1)
+    #term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1+M[good_idx[0]]*coeffM1 + W[good_idx[0]]*pt2L4
+    #term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1 + M[good_idx[0]]*coeffM1 + W[good_idx[0]]*pt2L4
+    
+    sigmaSq = a[good_idx[0]]*L2 + c[good_idx[0]]*pt2L4 + b[good_idx[0]]*L2*np.reciprocal(1.+d[good_idx[0]]*invpt2L2)
+    #sigmaSq = a[good_idx[0]]*L2 + c[good_idx[0]]*pt2L4 
+    #sigmaSq = c[good_idx[0]]*pt2L4 
+    
+    #term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1 + M[good_idx[0]]*coeffM1 +  W[good_idx[0]]*pt2L4 + barrelsign*sigmaSq
+    #term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1 + M[good_idx[0]]*coeffM1 - sigmaSq
+    
+    g = b[good_idx[0]]/c[good_idx[0]] + d[good_idx[0]]
+    
+    #term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1 + M[good_idx[0]]*coeffM1 - W[good_idx[0]]*pt2L4*(1.+g*invpt2L2)/(1.+d[good_idx[0]]*invpt2L2)
+    
+    term1 = A[good_idx[0]]-e[good_idx[0]]*coeffe1 + M[good_idx[0]]*coeffM1 - W[good_idx[0]]*pt2L4
+    
+    #term1 -= a[good_idx[0]]*L2 
+    #term1 -= c[good_idx[0]]*pt2L4
+    #term1 += b[good_idx[0]]*L2*np.reciprocal(1.+d[good_idx[0]]*invpt2L2)
+    
+    
+    #scaleSq = np.square(1.-term1)
+    #scaleSq = 1. - 2.*term1 + sigmaSq
+    #scale = np.sqrt(scaleSq)
+    scale = 1.-term1
+     
+    return scale
 
 def sigmaSqFromModelPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
     
@@ -210,12 +266,16 @@ def sigmaSqFromModelParsSingleMu(a,b,c,d, etas, binCenters1, good_idx):
     
     #compute sigma from physics parameters
 
-    pt2 = binCenters1[...,2]
-    L2 = binCenters1[...,3]
-    corr = binCenters1[...,4]
+    pt2L4 = binCenters1[...,2]
+    invpt2L2 = binCenters1[...,3]
+    L2 = binCenters1[...,4]
+    corr = binCenters1[...,5]
     
     #sigmaSq = a[good_idx[0]]*L2 + c[good_idx[0]]*pt2*np.square(L2) + b[good_idx[0]]*L2*np.reciprocal(1+d[good_idx[0]]*invpt2/L2)
-    sigmaSq = a[good_idx[0]]*L2 + c[good_idx[0]]*pt2*np.square(L2) + corr
+    #sigmaSq = a[good_idx[0]]*L2 + c[good_idx[0]]*pt2*np.square(L2) + corr
+    sigmaSq = a[good_idx[0]]*L2 + c[good_idx[0]]*pt2L4 + b[good_idx[0]]*L2*np.reciprocal(1.+d[good_idx[0]]*invpt2L2)
+    #sigmaSq = a[good_idx[0]]*L2 + c[good_idx[0]]*pt2L4*(1. + b[good_idx[0]]*invpt2L2)/(1. + d[good_idx[0]]*invpt2L2)
+    #sigmaSq = a[good_idx[0]]*L2 + c[good_idx[0]]*pt2L4 + corr
 
     return sigmaSq
 
@@ -239,7 +299,7 @@ def chi2LBins(x, binScaleSq, binSigmaSq, hScaleSqSigmaSq, etas,*args):
 
         binCenters1=args[0]
         good_idx=args[1]
-        scaleSqModel = scaleSqFromModelParsSingleMu(A,e,M,W,etas, binCenters1, good_idx)
+        scaleSqModel = scaleFromModelParsSingleMu(A,e,M,W,a,b,c,d,etas, binCenters1, good_idx)
         sigmaSqModel = sigmaSqFromModelParsSingleMu(a,b,c,d,etas, binCenters1, good_idx)
     
     scaleSqSigmaSqModel = np.stack((scaleSqModel,sigmaSqModel), axis=-1)
@@ -279,7 +339,7 @@ def chi2SumBins(x, binScaleSq, binSigmaSq, covScaleSqSigmaSq, etas, binCenters1,
                         
 
 def modelParsFromParVector(x):
-    x = x.reshape((-1,6))
+    x = x.reshape((-1,8))
     
     A = x[...,0]
     e = x[...,1]
@@ -287,7 +347,21 @@ def modelParsFromParVector(x):
     W = x[...,3]
     a = x[...,4]
     c = x[...,5]
+    b = x[...,6]
+    d = x[...,7]
+    
+    #a = x[...,3]
+    #c = x[...,4]
+    #b = x[...,5]
+    #d = x[...,6]
 
+    #b = 1e-5*b + 1e-6
+    #d = 370. + 100.*d
+    d = 100.*d
+    #d = np.exp(d)
+
+
+    #W = 1.+W
 
     #W = np.zeros_like(A)
     
@@ -301,10 +375,18 @@ def modelParsFromParVector(x):
     #c = 1e-9*c
 
     
-    b = np.zeros_like(a)
-    d = 370.*np.ones_like(a)
+    #b = np.zeros_like(a)
+    #d = 370.*np.ones_like(a)
     
     return A,e,M,W,a,b,c,d
+
+def scaleSigmaFromModelParVectorSingle(x, etas, binCenters, good_idx):
+    A,e,M,W,a,b,c,d = modelParsFromParVector(x)
+    
+    scale = scaleFromModelParsSingleMu(A, e, M, W, a,b,c,d,etas, binCenters, good_idx)
+    sigmasq = sigmaSqFromModelParsSingleMu(a, b, c, d, etas, binCenters, good_idx)
+    
+    return scale, np.sqrt(sigmasq)
 
 def scaleSigmaFromModelParVector(x, etas, binCenters1, binCenters2, good_idx):
     A,e,M,a,b,c,d = modelParsFromParVector(x)
@@ -358,6 +440,10 @@ def splitTransformPars(x, ndata, nEtaBins, nBins, isJ=True):
     return A,e,M,a,b,c,d,nsig,nbkg,slope
     
 
+def scaleSigmaSqFromBinsPars(x):
+    scale, sigma = scaleSigmaFromBinPars(x)
+    return scale, np.square(sigma)
+
 def scaleSqSigmaSqFromBinsPars(x):
     scale, sigma = scaleSigmaFromBinPars(x)
     return np.square(scale), np.square(sigma)
@@ -374,6 +460,12 @@ def scaleSigmaFromBinPars(x):
     scale = 1. + 1e-1*np.tanh(scale)
     #sigma = 5e-3*np.exp(2.*np.tanh(sigma))
     sigma = 0.01*np.exp(3.*np.tanh(sigma))
+    
+    #scale = 1. + 1e-2*np.tanh(scale)
+    #sigma = 5e-3*np.exp(2.*np.tanh(sigma))
+    
+    #scale = np.ones_like(scale)
+    #sigma = 1e-2*np.ones_like(sigma)
     
     return scale, sigma
     
@@ -432,6 +524,7 @@ def nllBinsResolution(scale, sigma, dataset, masses):
     #print dataset.shape, 'dataset.shape'
     #print scale.shape, 'scale.shape'
     #print pdf.shape, 'pdf.shape'
+    #nll = np.sum(-dataset*np.log(np.where(pdf>0., pdf, 1.)),axis=-1)
     nll = np.sum(-dataset*np.log(np.where(dataset>0., pdf, 1.)),axis=-1)
 
     #print nll.shape, 'nll.shape'
@@ -515,11 +608,13 @@ def plotsSingleMu(scale,sigma,dataset,masses):
     print(gaussianpdf(scale, sigma, masses))
 
 
-    #for ibin in range(nBins):
-    for ibin in range(0,nBins,10):
+    for ibin in range(nBins):
+    #for ibin in range(0,nBins,10):
         
         scale_bin = scale[ibin]
         sigma_bin = sigma[ibin]
+        if sigma_bin<0.07:
+            continue
 
         plt.clf()
         

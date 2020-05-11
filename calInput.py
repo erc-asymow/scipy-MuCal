@@ -62,8 +62,10 @@ def makeData(inputFile, genMass=False, smearedMass=False, mcTruth=False, isData=
             .Define('smearedgenMass', '(v1sm+v2sm).M()')
 
     if mcTruth:
-        d = d.Define('res1','pt1/mcpt1')\
-            .Define('res2','pt2/mcpt2')\
+        #d = d.Define('res1','pt1/mcpt1')\
+            #.Define('res2','pt2/mcpt2')\
+        d = d.Define('res1','mcpt1/pt1')\
+            .Define('res2','mcpt2/pt2')\
 
     f = ROOT.TFile.Open('%s/bFieldMap.root' % dataDir)
     bFieldMap = f.Get('bfieldMap')
@@ -141,7 +143,8 @@ def makeMCTruthDataset(data, etas, pts, masses):
     terms = []
     terms.append(pt)
     terms.append(np.abs(sEta/pt))
-    terms.append(np.square(pt))
+    terms.append(np.square(pt)*np.power(L,4))
+    terms.append(np.reciprocal(np.square(pt)*np.square(L)))
     terms.append(np.square(L))
     terms.append(b*np.square(L)*np.reciprocal(1.+d/np.square(pt)/np.square(L)))
 
@@ -203,7 +206,8 @@ def makepkg(data, etas, pts, masses, good_idx, smearedMass=False):
         terms = []
         terms.append(pt)
         terms.append(sEta/pt)
-        terms.append(np.square(pt))
+        terms.append(np.square(pt)*np.power(L,4))
+        terms.append(np.reciprocal(np.square(pt)*np.square(L)))
         terms.append(np.square(L))
         terms.append(b*np.square(L)*np.reciprocal(1.+d/np.square(pt)/np.square(L)))
 
@@ -243,7 +247,9 @@ else:
 nEtaBins = 48
 nPtBins = 5
 nMassBins = 100
-nPtBinsMCTruth = 80
+
+nMassBinsMCTruth = 200
+nPtBinsMCTruth = 20
 
 
 if restrictToBarrel:
@@ -301,19 +307,28 @@ print("good_idx size", good_idx[0].shape)
 
 histoGen = histoGen[good_idx]
 
-#modify the pt vector to take account of the charge
+#mcptquantiles = np.linspace(0.,1.,nPtBinsMCTruth+1, dtype='float64')
+#mcpts = np.quantile(np.concatenate((dataMC['mcpt1'],dataMC['mcpt2']),axis=0),mcptquantiles)
 
+
+#mcpts = pts
+
+##modify the pt vector to take account of the charge
 if isJ:
     mcpts = np.linspace(4.3,25, nPtBinsMCTruth+1, dtype='float64')
 else:
     mcpts = np.linspace(20.,100., nPtBinsMCTruth+1, dtype='float64')
     
+mcpts = mcpts[1:]
 ptsNeg = np.flip(-1*mcpts)
-mcpts = np.concatenate((ptsNeg,mcpts), axis=None)
+mcpts = np.concatenate((ptsNeg,(0.,),mcpts), axis=None)
 
 print(pts, "mctruth")
 
-res = np.linspace(0.9, 1.1, nMassBins+1, dtype='float64')
+#if isJ:
+    #res = np.linspace(0.9, 1.1, nMassBinsMCTruth+1, dtype='float64')
+#else:
+res = np.linspace(0.7, 1.3, nMassBinsMCTruth+1, dtype='float64')
 pkgTruth = makeMCTruthDataset(dataMC,etas,mcpts,res)
 
 with open(pklfileGen, 'wb') as filehandler:
