@@ -25,9 +25,11 @@ runClosure = args.runClosure
 dataDir = args.dataDir
 
 ROOT.ROOT.EnableImplicitMT()
-RDF = ROOT.ROOT.RDataFrame
+
 
 def makeData(inputFile, genMass=False, smearedMass=False, isData=False):
+
+    RDF = ROOT.ROOT.RDataFrame
 
     if isJ:
         cut = 'pt1>4.3 && pt2>4.3 && pt1<25. && pt2<25.'# && mass>2.9 && mass<3.3'
@@ -146,8 +148,9 @@ def makepkg(data, etas, pts, masses, good_idx, smearedMass=False):
         terms = []
         terms.append(pt)
         terms.append(sEta/pt)
-        terms.append(np.square(pt))
+        terms.append(L**4*pt**2)
         terms.append(np.reciprocal(1.+370./np.square(L)/np.square(pt)))
+        terms.append(1./pt**2/L**2)
         
         means = []
         for term in terms:

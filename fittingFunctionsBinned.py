@@ -212,7 +212,7 @@ def computeTrackLength(eta):
     L = np.where(np.absolute(eta) <= 1.4, L0, (np.where(eta > 1.4, np.minimum(r, 108.)-4.4, np.minimum(-r, 108.)-4.4)))
 
     #print(L)
-    return L
+    return L0/L
     
     #return np.ones((eta.shape[0]))
 
@@ -298,9 +298,11 @@ def sigmaSqFromModelPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
     
     coeffc1 = binCenters1[...,2]
     coeffb1 = binCenters1[...,3]
+    coeffd1 = binCenters1[...,4]
     
     coeffc2 = binCenters2[...,2]
     coeffb2 = binCenters2[...,3]
+    coeffd2 = binCenters2[...,4]
     
 
     L = computeTrackLength(etasC)
@@ -317,14 +319,17 @@ def sigmaSqFromModelPars(a,b,c,d, etas, binCenters1, binCenters2, good_idx):
     c2 = c[good_idx[1]]
     d2 = d[good_idx[1]]
 
-    #res1 = a1*np.power(l1,2) + c1*np.power(l1,4)*np.power(p1,2) + b1*np.power(l1,2)/(1+d1/(np.power(p1,2)*np.power(l1,2)))
+    ##res1 = a1*np.power(l1,2) + c1*np.power(l1,4)*np.power(p1,2) + b1*np.power(l1,2)/(1+d1/(np.power(p1,2)*np.power(l1,2)))
     #res2 = a2*np.power(l2,2) + c2*np.power(l2,4)*np.power(p2,2) + b2*np.power(l2,2)/(1+d2/(np.power(p2,2)*np.power(l2,2)))
     
     #res1 = a1 + c1*np.power(p1,2) + b1/(1.+d1/(np.power(p1,2)*np.power(l1,2)))
     #res2 = a2 + c2*np.power(p2,2) + b2/(1.+d2/(np.power(p2,2)*np.power(l2,2)))
     
-    res1 = a1 + c1*coeffc1 + b1*coeffb1
-    res2 = a2 + c2*coeffc2 + b2*coeffb2
+    #res1 = a1 + c1*coeffc1 + b1*coeffb1
+    #res2 = a2 + c2*coeffc2 + b2*coeffb2
+
+    res1 = a1 + c1*coeffc1 + b1*coeffb1/(1.+d1*coeffd1)
+    res2 = a2 + c2*coeffc2 + b2*coeffb2/(1.+d2*coeffd2)
 
     sigmaSq = 0.25*(res1+res2)
     
@@ -371,17 +376,25 @@ def chi2SumBins(x, binScaleSq, binSigmaSq, covScaleSqSigmaSq, etas, binCenters1,
                         
 
 def modelParsFromParVector(x):
-    x = x.reshape((-1,5))
+    x = x.reshape((-1,7))
+    
+    #parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-6, 1e-3, 1e-3, 1e-7,1.])
+    parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-3, 1e-3, 1e-7,1e-6])
+    x = x*parmscale[np.newaxis,:]
     
     A = x[...,0]
     e = x[...,1]
     M = x[...,2]
     a = x[...,3]
     c = x[...,4]
-    #b = x[...,5]
+    b = x[...,5]
+    W = x[...,6]
+    
+    #b = 1e-5 + b
     
     #c = np.zeros_like(a)
     b = np.zeros_like(a)
+    #d = np.zeros_like(a)
     d = 370.*np.ones_like(a)
     
     return A,e,M,a,b,c,d

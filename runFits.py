@@ -285,7 +285,7 @@ sigmaErrorBinned = 0.5*sigmaSqErrorBinned/sigmaBinned
 
 #assert(0)
 
-nModelParms = 5
+nModelParms = 7
 
 #xmodel = np.zeros((nEtaBins,nModelParms),dtype=np.float64)
 
@@ -296,7 +296,26 @@ nModelParms = 5
 
 #xmodel = np.stack((A,e,M,a),axis=-1)
 
-xmodel = np.zeros((nEtaBins,nModelParms),dtype=np.float64)
+#xmodel = np.zeros((nEtaBins,nModelParms),dtype=np.float64)
+
+parmones = np.ones((nEtaBins),dtype=np.float64)
+
+A = 0.*parmones
+e = 0.*parmones
+M = 0.*parmones
+W = 0.*parmones
+#a = 1e-3
+#b = 1e-3
+#c = 1e-5
+#d = 370.
+a = 1.*parmones
+b = 1.*parmones
+c = 1.*parmones
+d = 1.*parmones
+
+
+#xmodel = np.array((A,e,M,a,c,b,d),dtype=np.float64)
+xmodel = np.stack((A,e,M,a,c,b,d),axis=-1)
 
 
 chi2 = chi2LBins(xmodel, scaleSqBinned, sigmaSqBinned, hScaleSqSigmaSqBinned, etas, binCenters1, binCenters2, good_idx)
