@@ -3,9 +3,9 @@
 #include "TTree.h"
 #include </usr/include/eigen3/Eigen/Dense>
 
-void applycorrections(char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_0_30/work/trackTreeGrads.root") {
+void applycorrections(const char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_0_30/work/trackTreeGrads.root") {
   
-  filename = "root://eoscms.cern.ch///store/group/phys_smp/emanca/data/*.root";
+//   filename = "root://eoscms.cern.ch///store/group/phys_smp/emanca/data/*.root";
   
   ROOT::EnableImplicitMT();
   
