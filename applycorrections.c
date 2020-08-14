@@ -3,7 +3,9 @@
 #include "TTree.h"
 #include </usr/include/eigen3/Eigen/Dense>
 
-void applycorrections(const char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_0_30/work/trackTreeGrads.root") {
+void applycorrections(char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_0_30/work/trackTreeGrads.root") {
+  
+  filename = "root://eoscms.cern.ch///store/group/phys_smp/emanca/data/*.root";
   
   ROOT::EnableImplicitMT();
   
@@ -63,6 +65,8 @@ void applycorrections(const char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_
   
   auto d2 = d.Define("corParms", correctParms, { "refParms", "jacrefv", "globalidxv" });
   
-  auto d3 = d2.Snapshot(treename, outfilename,  { "trackPt", "trackPtErr", "trackEta", "trackPhi", "trackCharge", "trackParms", "trackCov", "refParms", "refCov", "genParms", "genPt", "genEta", "genPhi", "genCharge", "run", "lumi", "event", "corParms" } );
+//   auto d3 = d2.Snapshot(treename, outfilename,  { "trackPt", "trackPtErr", "trackEta", "trackPhi", "trackCharge", "trackParms", "trackCov", "refParms", "refCov", "genParms", "genPt", "genEta", "genPhi", "genCharge", "run", "lumi", "event", "corParms" } );
+  
+    auto d3 = d2.Snapshot(treename, outfilename,  { "trackPt", "trackPtErr", "trackEta", "trackPhi", "trackCharge", "trackParms", "trackCov", "refParms", "refCov", "genParms", "genPt", "genEta", "genPhi", "genCharge", "corParms" } );
 
 }
