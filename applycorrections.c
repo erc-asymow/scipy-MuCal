@@ -7,6 +7,7 @@ void applycorrections(const char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_
   
 //   filename = "root://eoscms.cern.ch///store/group/phys_smp/emanca/data/*.root";
   
+  Eigen::initParallel();
   ROOT::EnableImplicitMT();
   
   TFile *fcor = TFile::Open("correctionResults.root");
