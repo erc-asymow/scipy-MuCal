@@ -5,7 +5,7 @@
 
 void applycorrections(const char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_0_30/work/trackTreeGrads.root") {
   
-//   ROOT::EnableImplicitMT();
+  ROOT::EnableImplicitMT();
   
   TFile *fcor = TFile::Open("correctionResults.root");
   
