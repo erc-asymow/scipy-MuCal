@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <ROOT/RDataFrame.hxx>
 #include "TFile.h"
+#include "TSystem.h"
 
 class GradHelper : public ROOT::Detail::RDF::RActionImpl<GradHelper> {
 
@@ -15,13 +16,9 @@ public:
   
   std::shared_ptr<Result_t> GetResultPtr() const { return grad_; }
 
-  void Exec(unsigned int slot, ROOT::VecOps::RVec<float> const& vec, ROOT::VecOps::RVec<unsigned int> const& idxs) {
+  void Exec(unsigned int slot, unsigned int idx, double val) {
     std::vector<double>& grad = gradtmp_[slot];
-    
-    for (unsigned int i=0; i<vec.size(); ++i) {
-      const unsigned int& idx = idxs[i];
-      grad[idx] += vec[i];
-    }
+    grad[idx] += val;
     
   }
   void InitTask(TTreeReader *, unsigned int) {}
@@ -72,30 +69,18 @@ public:
 //     return std::shared_ptr<Result_t>(reinterpret_cast<Result_t*>(gradatom_.get()));
 //   }
 
-  void Exec(unsigned int slot, ROOT::VecOps::RVec<float> const& vec, ROOT::VecOps::RVec<unsigned int> const& idxs) {
+  void Exec(unsigned int slot, unsigned long long iidx, unsigned int jidx, double val) {
     
-    unsigned int k = 0;
-    for (unsigned int i=0; i<idxs.size(); ++i) {
-      const unsigned int& iidx = idxs[i];
-      const unsigned long long& ioffset = offsets_[iidx];
-      for (unsigned int j=i; j<idxs.size(); ++j) {
-        const unsigned int& jidx = idxs[j];
-        const unsigned long long& joffset = offsets_[jidx];
-        const unsigned long long idx = jidx >= iidx ? ioffset + jidx : joffset + iidx;
-
-        std::atomic<double>& ref = (*grad_)[idx];
-        const double& diff = vec[k];
-        double old = ref.load();
-        double desired = old + diff;
-        while (!ref.compare_exchange_weak(old, desired))
-        {
-            desired = old + diff;
-        }
-//         if ((idxs[i]==15 && idxs[j]==61060) || idx==976960) {
-//           std::cout << "i: " << i << " j: " << j << " idxs[i]: " << idxs[i] << " idxs[j]: " << idxs[j] << " offset: " << offset << " idx: " << idx << " diff: " << diff << std::endl;          
-//         }
-        ++k;
-      }
+    const unsigned long long& ioffset = offsets_[iidx];
+    const unsigned long long& joffset = offsets_[jidx];
+    const unsigned long long idx = jidx >= iidx ? ioffset + jidx : joffset + iidx;
+    
+    std::atomic<double>& ref = (*grad_)[idx];
+    double old = ref.load();
+    double desired = old + val;
+    while (!ref.compare_exchange_weak(old, desired))
+    {
+        desired = old + val;
     }
 
     
@@ -206,11 +191,11 @@ bool valid(ROOT::VecOps::RVec<float> const& vec) {
   return true;
 }
 
-void fillmatricesrdf(const char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_0_30/work/trackTreeGradsdebug2.root") {
+void fillmatricessparse() {
     
 //   std::atomic<double> t;
 //   std::cout<< "is lock free: " << t.is_lock_free() << std::endl;
-  
+  gSystem->Setenv("XRD_REQUESTTIMEOUT","10");
   
 //   std::cout << ROOT::GetImplicitMTPoolSize() << std::endl;
 
@@ -220,50 +205,73 @@ void fillmatricesrdf(const char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_0
 //   std::cout << ROOT::GetImplicitMTPoolSize() << std::endl;
  
 //   const char* filenameinfo = "/data/bendavid/cmsswdevslc6/CMSSW_8_0_30/work/trackTreeGradsParmInfo.root";
-//   TFile *finfo = TFile::Open(filenameinfo);
+//   const char* filenameinfo = "/data/bendavid/cmsswdevslc6/CMSSW_10_2_23/work/trackTreeGradsParmInfo.root";
+//   const char* filenameinfo = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorGen_v12/200823_134027/0000/globalcorgen_1.root";
+//   const char* filenameinfo = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorGenFwd_v12/200824_105616/0000/globalcorgen_103.root";
+  const char* filenameinfo = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgeantint4genhelixprecrefb//globalcor_0.root";
+//   const char* filenameinfo = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_v28/200829_122617/0000/globalcor_1.root";
+
+  TFile *finfo = TFile::Open(filenameinfo);
 //   TTree *runtree = static_cast<TTree*>(finfo->Get("tree"));
-//   unsigned int nparms = runtree->GetEntries();
-  const unsigned int nparms = 61068;
+//   TTree *runtree = static_cast<TTree*>(finfo->Get("globalCorGen/runtree"));
+//   TTree *runtree = static_cast<TTree*>(finfo->Get("globalCor/runtree"));
+    TTree *runtree = static_cast<TTree*>(finfo->Get("runtree"));
+  unsigned int nparms = runtree->GetEntries();
+//   const unsigned int nparms = 61068;
   
   std::cout << "nparms: " << nparms << std::endl;
   
-  std::string treename = "tree";
+//   std::string treename = "tree";
 //   std::string filename = "/data/bendavid/muoncaldata/test3/testlz4large.root";
 //   std::string filename = "/data/bendavid/muoncaldata/test3/testzliblarge.root";
 //   std::string filename = "/data/bendavid/cmsswdevslc6/CMSSW_8_0_30/work/trackTreeGrads.root";
 //   std::string filename = "/data/bendavid/muoncaldata/largetest/*.root";
 
+//   const std::string filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/Muplusandminus_Pt3to150-gun/MuonGunGlobalCor_v3/200817_213237/0000/*.root";
+//   const std::string filename = "/data/bendavid/muoncaldatalarge/Muplusandminus_Pt3to150-gun/MuonGunGlobalCor_v4/200820_002243/0000/*.root";
   
+//   const std::string filename = "/data/bendavid/cmsswdevslc6/CMSSW_10_2_23/work/trackTreeGrads.root";
+//   const std::string filename = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCor_v6/200821_082048/0000/*.root";
+//   const std::string filename = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorGen_v12/200823_134027/0000/globalcorgen_*.root";
+//   const std::string filename = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorGen_GBLchisq/200908_222942/0000/globalcorgen_*.root";
+  
+    const std::string filename = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgeantint4genhelixprecrefb//globalcor_*.root";
+
+  
+//   const std::string filename = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_v28/200829_122617/0000/globalcor_*.root";
   
   GradHelper gradhelper(nparms);
   HessHelper hesshelper(nparms);
   
-  ROOT::RDataFrame d(treename, filename);
+//   ROOT::RDataFrame dgrad("gradtree", "fixedGrads.root");
+//   ROOT::RDataFrame dgrad("globalCorGen/gradtree", filename);
+//   ROOT::RDataFrame dgrad("globalCor/gradtree", filename);
+  ROOT::RDataFrame dgrad("gradtree", filename);
+  auto grad = dgrad.Book<unsigned int, double>(std::move(gradhelper), { "idx", "gradval" });
   
-  auto d2 = d.Filter("trackPt > 5.5");
-//   auto d3 = d.Define("gradmax", "maxelement(gradv)");
-//   auto d3 = d2.Filter("maxelement(gradv) < 1e5 && maxelementhess(hesspackedv)<1e8");
-  auto d3 = d2.Filter("maxelement(gradv) < 1e5");
-//   auto d3 = d2.Filter("maxelement(gradv) < 1e5 && valid(gradv) && valid(hesspackedv) && maxelementhess(hesspackedv)<1e8");
+//   ROOT::RDataFrame dhess("globalCorGen/hesstree", filename);
+//   ROOT::RDataFrame dhess("globalCor/hesstree", filename);
+  ROOT::RDataFrame dhess("hesstree", filename);
+
+  auto hess = dhess.Book<unsigned int, unsigned int, double>(std::move(hesshelper), {"iidx", "jidx", "hessval" });
   
-  
-  auto grad = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(gradhelper), {"gradv", "globalidxv"});
-  auto hess = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(hesshelper), {"hesspackedv", "globalidxv"});
-  
-  auto gradcounts = d3.Histo1D({"gradcounts", "", int(nparms), -0.5, double(nparms)-0.5}, "globalidxv");
+//   auto gradcounts = d3.Histo1D({"gradcounts", "", int(nparms), -0.5, double(nparms)-0.5}, "globalidxv");
 
   std::cout << (*grad)[0] << std::endl;
   std::cout << (*hess)[0] << std::endl;
 
   TFile *fgrads = new TFile("combinedgrads.root", "RECREATE");
+//   TFile *fgrads = new TFile("combinedgradsrec.root", "RECREATE");
   TTree *tree = new TTree("tree", "");
   
+  unsigned int idx;
   double gradelem;
   std::vector<double> hessrow(nparms);
   
   std::ostringstream leaflist;
   leaflist<< "hessrow[" << nparms << "]/D";
   
+  tree->Branch("idx", &idx);
   tree->Branch("gradelem", &gradelem);
   tree->Branch("hessrow", hessrow.data(), leaflist.str().c_str(), nparms);
   
@@ -278,6 +286,7 @@ void fillmatricesrdf(const char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_0
   std::cout << "offsets[15]: " << offsets[15] << " offsets[16]: " << offsets[16] << std::endl;
   
   for (unsigned int i = 0; i < nparms; ++i) {
+    idx = i;
     gradelem = (*grad)[i];
 //     hessrow.clear();
 //     hessrow.resize(nparms, 0.);
@@ -296,7 +305,7 @@ void fillmatricesrdf(const char *filename="/data/bendavid/cmsswdevslc6/CMSSW_8_0
   }
   
   tree->Write();
-  gradcounts->Write();
+//   gradcounts->Write();
   fgrads->Close();
     
 }

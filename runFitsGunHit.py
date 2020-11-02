@@ -1,0 +1,1014 @@
+import os
+import multiprocessing
+
+#forcecpu = True
+forcecpu = False
+
+if forcecpu:
+    ncpu = multiprocessing.cpu_count()
+    os.environ["XLA_FLAGS"] = f"--xla_force_host_platform_device_count={ncpu}"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+else:
+    #os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.45"
+    os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir=/opt/cuda"
+
+#os.environ["OMP_NUM_THREADS"] = str(ncpu)
+#os.environ["OPENBLAS_NUM_THREADS"] = str(ncpu)
+#os.environ["MKL_NUM_THREADS"] = str(ncpu)
+#os.environ["VECLIB_MAXIMUM_THREADS"] = str(ncpu)
+#os.environ["NUMEXPR_NUM_THREADS"] = str(ncpu)
+
+#os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
+#os.environ["XLA_FLAGS"]="--xla_hlo_profile"
+
+#os.environ["XLA_FLAGS"] = "--xla_cpu_multi_thread_eigen=true intra_op_parallelism_threads=32 inter_op_parallelism_threads=32 xla_force_host_platform_device_count=32"
+
+#os.environ["XLA_FLAGS"] = "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
+
+import jax
+import jax.numpy as np
+import jax.scipy as scipy
+import numpy as onp
+from jax import grad, hessian, jacobian, config
+from jax.scipy.special import erf
+config.update('jax_enable_x64', True)
+
+import ROOT
+import pickle
+from termcolor import colored
+#from scipy.optimize import minimize, SR1, LinearConstraint, check_grad, approx_fprime
+#from scipy.optimize import Bounds
+import itertools
+from root_numpy import array2hist, fill_hist
+
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+
+#from fittingFunctionsBinned import defineStatePars, nllPars, defineState, nll, defineStateParsSigma, nllParsSigma, plots, plotsPars, plotsParsBkg, scaleFromModelPars, splitTransformPars, nllBinsFromBinPars, chi2LBins, scaleSqSigmaSqFromBinsPars,scaleSqFromModelPars,sigmaSqFromModelPars,modelParsFromParVector,scaleSigmaFromModelParVector, plotsBkg, bkgModelFromBinPars
+from fittingFunctionsBinned import computeTrackLength
+from obsminimization import pmin,batch_vmap,jacvlowmemb, batch_accumulate, lbatch_accumulate, pbatch_accumulate,lpbatch_accumulate, pbatch_accumulate_simple,random_subset
+#from calInput import makeData
+import argparse
+import functools
+import time
+import sys
+from header import CastToRNode
+
+
+#ROOT.gROOT.ProcessLine(".L src/module.cpp+")
+#ROOT.gROOT.ProcessLine(".L src/applyCalibration.cpp+")
+
+ROOT.ROOT.EnableImplicitMT()
+
+def ptparm(parms):
+  p = np.abs(1./parms[0])
+  theta = np.pi/2. - parms[1]
+  pt = p*np.sin(theta)
+  return pt
+
+def makeData(inputFile,ptmin):
+
+    RDF = ROOT.ROOT.RDataFrame
+
+    #ptmin = 5.5
+    #ptmax = 
+    
+    #if idx==1:
+        #q = 1.0
+    #elif idx==2:
+        #q = -1.0
+        
+
+    #treename = "globalCor/tree"
+    #treename = "globalCorOut/tree"
+    treename = "tree"
+
+    d = RDF(treename,inputFile)
+    
+    cut = f"genPt>{ptmin} && fabs(genEta)<2.4"
+    cut += " && genEta<-2.3"
+    
+    #cut = f"mcpt{idx} > {ptmin} && fabs(eta{idx})<2.4"
+    #cut += f" && gen_phi>=0. && gen_phi<0.4"
+    #cut += f" && gen_phi>={-np.pi} && gen_phi<{np.pi/4.}"
+    
+    #cut += f" && eta{idx}>2.3"
+    
+    #print(cut)
+
+    d = d.Filter(cut)
+    
+    #d = d.Define("recParms", "trackOrigParms");
+    #d = d.Define("recParms", "trackParms");
+    #d = d.Define("recParms", "refParms_iter0");
+    #d = d.Define("recParms", "refParms");
+    #d = d.Define("recParms", "corParms");
+
+    #d = d.Define("recPt", "std::abs(1./recParms[0])*std::sin(M_PI_2 - recParms[1])");
+    #d = d.Define("recCharge", "std::copysign(1.0,recParms[0])");
+    
+    #d = d.Define("kr", "(1./0.42)*genPt*genCharge/recPt/recCharge");
+    #d = d.Define("kr", "genPt*genCharge/recPt/recCharge");
+    #d = d.Define("kr", "recParms[0]/genParms[0]");
+    #d = d.Define("kr", "genPt/trackPt");
+    #d = d.Define("kr", "genPt");
+    
+    d = d.Define("kr", "dxpxb1");
+    #d = d.Define("kr", "dypxb1");
+    #d = d.Define("kr", "dxttec4rphi");
+    #d = d.Define("kr", "dxttec4rphisimgen");
+    #d = d.Define("kr", "dyttec4rphisimgen");
+    #d = d.Define("kr", "dyttec9rphisimgen");
+    #d = d.Define("kr", "dxttec9rphisimgen");
+    #d = d.Define("kr", "dxttec4rphirecsim");
+    #d = d.Define("kr", "dxttec4stereo");
+    #d = d.Define("kr", "dxttec9rphi");
+    
+    #d = d.Define('krec', f'1./pt{idx}*(1.-cErr{idx}*cErr{idx})')
+    #d = d.Define('kgen', f'1./mcpt{idx}')
+
+    #d = d.Define('krec', f'1./pt{idx}')
+    #d = d.Define('kr', "log(reco_curv/gen_curv)")
+    #d = d.Define('kr', "reco_charge*reco_curv/gen_curv/gen_charge")
+    #d = d.Define('kr', "corParms[0]/genParms[0]")
+    #d = d.Define('kr', "trackParms[0]/genParms[0]")
+    #d = d.Define('kr', "refParms[0]/genParms[0]")
+    #d = d.Define('kr', "gen_curv/reco_curv")
+    d = d.Define('kgen', "1./genPt")
+    
+    #d = d.Filter("kr>=0. && kr<2.")
+    d = d.Filter("abs(kr)<0.05")
+    #d = d.Filter("kr>=(-log(3.)) && kr<log(3.)")
+    
+    #d = d.Define('krec', f'pt{idx}')
+    #d = d.Define('kgen', f'mcpt{idx}')
+    
+    d = d.Define('eta', "genEta")
+    d = d.Define('phi', "genPhi")
+    d = d.Define('q', "genCharge")
+    #d = d.Filter("krec/kgen>0.5 && krec/kgen<2.0")
+
+    
+    cols=['eta','phi', 'q','kgen','kr']
+    
+    data = d.AsNumpy(columns=cols)
+
+    return data
+
+
+def scale(A,e,M,k,q,eta):
+    sintheta = np.sin(2*np.arctan(np.exp(-eta)))
+    l = computeTrackLength(eta)
+    
+    #delta = A - e*sintheta*k + q*M/k + W*l**4/k**2
+    #delta = A - e*sintheta*k + q*M/k + W/k**2
+    #g = b/c + d
+    
+    #delta = A - e*sintheta*k + q*M/k - W*l**4/k**2*(1.+g*k**2/l**2)/(1.+d*k**2/l**2)
+    #delta = A - e*sintheta*k + q*M/k + W*l**4/k**2
+    #delta = A - e*sintheta*k + q*M/k + W/k**2 + Y/k + Z*k**2 + q*V + q*e2*k + q*W2/k**2 + q*Z2*k**2
+    #delta = A - e*k + q*M/k + W/k**2 + Y/k + Z*k**2 + q*V + q*e2*k + q*W2/k**2 + q*Z2*k**2
+    #delta = A - e*k + q*M/k +Z*k**2 + Y/k + q*W*k
+    #delta = A - e*k + q*M/k 
+    #return 1.-delta
+    #return np.log1p(delta) - 0.5*sigmasq
+    
+    #res = np.log1p(A) - np.log1p(e*k) + np.log1p(q*M/k) -0.5*W/k**2 + Y*k**2 -0.5*Z/k
+    
+    #res = np.log1p(A) - np.log1p(e*k) + np.log1p((1.+e*k)*q*M/k) -0.5*W/k**2 + Y*k**2 -0.5*Z/k
+    #res = np.log1p(A) - np.log1p(e*k) + np.log1p((1.+e*k)*q*M/k) -0.5*W/k**2 + Y*k**2 -0.5*Z/k + V*k
+    #res = np.log1p(A) + np.log1p((1.+e*k)*q*M/k) -0.5*W/k**2 + Y*k**2 -0.5*Z/k + V*k
+    #res = A - np.log1p(e*k) + np.log1p(q*M/k + q*e*M) -0.5*W/k**2 + Y*k**2 -0.5*Z/k + V*k
+    #res = A + np.log1p(q*M/k + q*e) -0.5*W/k**2 + Y*k**2 -0.5*Z/k + V*k
+    
+    #res =  A + q*M/k + e*k + W/k**2 + Y*k**2 + Z/k + q*V + q*e2*k + q*Z2*k**2
+    
+    #res =  1. -A - q*M/k - e*k - W**2/(1.+Y**2/k**2)
+    #res =  -A - q*M/k - e*k + (1.+W**2*Y**2/k**2)/(1.+Y**2/k**2)
+    #res = 1 - A - q*M/k - e*k - W/(1.+ Y*k**2)
+    #res = 1. - A - q*M/k - e*k - W/(1.+ Y**2*k**2)
+    #res = (1.+A)*(1. + W*k**2)/(1. + Y*k**2) - q*M/k - e*k
+    #res = 1.  - A - q*M/k - e*k + W**2/(1.+Y**2*k**2)
+    #res = (1. + A + W**2*Y**2/k**2)/(1. + Y**2/k**2) - q*M/k
+    #res = (1. + A + W**2*Y**2*k**2)/(1. + Y**2*k**2) - q*M/k
+    #res = (1. + A + np.exp(W+Y)/k**2)/(1. + np.exp(Y)/k**2) - q*M/k
+    #res = 1. - A - q*M/k - W/(1.+Y**2*k**2)
+    #res = 1. - A - q*M/k - W/(1.+Y**2*k**2)
+    #res = (1. + A + (1.+W)*Y**2/k**2)/(1.+Y**2/k**2) - q*M/k
+    #res = (1.+A)*(1.+np.exp(W+Y)/k**2)/(1.+np.exp(Y)/k**2)*(1.+q*M/k)/(1.+e*k)
+    #res = (1.+A)*(1.+np.exp(W+Y)/k**2)/(1.+np.exp(Y)/k**2)*(1.+q*M/k)/(1.+e*k)
+    
+    
+    #good
+    #res = (1.+A)*(1.+np.exp(W+Y)/k**2)/(1.+np.exp(Y)/k**2)*(1.+q*M/k)
+    
+    #good2
+    #res = (1.+A)*(1.+np.exp(W+Y)*k**2)/(1.+np.exp(Y)*k**2)*(1.+q*M/k)
+    
+    #good3
+    #res = (1.+A)*(1.+np.exp(W+Y)/k**2)/(1.+np.exp(Y)/k**2)*(1.+q*M/k)/(1.+e*k)
+    
+    #bad
+    #res = (1.+A)*(1.+np.exp(W+Y)*k**2)/(1.+np.exp(Y)*k**2)*(1.+q*M/k)/(1.+e*k)
+    
+    #res = (1.+A)*(1.+np.exp(W+Y)*k**2)/(1.+np.exp(Y)*k**2)*(1. +q*M/k + q*V + q*e2*k +  q*Z2*k**2)/(1.+e*k)
+
+    
+    #emod = 5e-2*np.sin(e)
+    #emod = 1e-3*e
+    #emod = 0.1*np.tanh(e)
+    
+    #Y = np.sqrt(1.+Y**2) - 1.
+    #e2 = np.sqrt(100.+e2**2) - 1.
+    #Y = Y**2
+    #e2 = (5000.+e2)**2
+    #Z2 = (10.+Z2)**2
+    ##Z = (1.+Z)**2
+    #e2 = (1.+e2)**2
+    #Z = 1e-4*Z
+    
+    #W  = 1e-4 + W
+    #Z = 1e-4 + Z
+    #Z = 0.
+    #V = (1.+V)**2
+    #Z2 = (1.+Z2)**2
+    
+    #res = (1.+A)*(1.+np.exp(W+Y)*k**2)/(1.+np.exp(Y)*k**2)*(1. +q*M/k)/(1. + e*k)
+    #res = (1. + A + np.exp(W+Y)*k**2)/(1.+np.exp(Y)*k**2)*(1. +q*M/k)/(1. + e*k)
+    #res = (1. + A + (1.+W)*Y*k**2)/(1.+Y*k**2)*(1. +q*M/k)
+    
+    #res = 1./(1.+e*k) + (A + W*Y*k**2)/(1. + Y*k**2) + q*M/k
+    #res = 1. + (A + W*Y*k**2 * Z*e2*k**4)/(1. + Y*k**2 + e2*k**4) + q*M/k
+    #res = 1. + (A + W*Y*k**2)/(1. + Y*k**2) + q*M/k
+    #res = (1. + A + (1.+W)*Y*k**2 + (1.+Z)*e2*k**4)/(1. + Y*k**2 + e2*k**4) + q*M/k 
+    #res = 1. + A + q*M/k + W/(1.+Y*k**2) + q*Z*k/(1.+Y*k**2) - e*k - e2*k/(1.+Y*k**2)
+    #res = 1. + A + q*M/k + W/(1.+Y*k**2) + q*Z*k/(1.+e2*k**2)
+    
+    #res = 1. + A + W/(1.+Y*k**2) + Z2/k**2 + q*M/k + q*Z*k/(1.+Y*k**2) + q*V*k
+    
+    #res = 1. + A + W/(1.+Y*k**2) + Z2/k**2 + q*M/k + q*Z*k/(1.+Y*k**2) + q*V*k
+    
+    #res = 1. + A + W/(1.+Y*k**2) + q*M/k + q*Z*k/(1.+Y*k**2) + q*V*k - e*k - e2*k/(1.+Y*k**2)
+    #res = 1. + A + W/(1.+Y*k**2) + q*M/k + q*Z/k/(1.+Y*k**2) - e*k - e2*k/(1.+Y*k**2)
+                                                                           
+    res = 1. + A + q*M/k - e*k
+    #res = 1./(1.+e*k) + (A + W*Y*k**2)/(1. + Y*k**2) + q*M/k
+    
+    #res = np.where(np.abs(e)>0.1, np.nan, res)
+    
+    #res = np.where(Y>=0., res, np.nan)
+    return res
+    #res =  A + q*M/k + e*k + W/k**3 + Y*k**2 + Z/k + q*V + q*e2*k + q*Z2*k**2
+    #res =  A + q*M/k + e*k + Z/k
+    #res =  A + q*M/k + e*k + Z/k + W/k**3
+    
+    #res =  A + q*M/k + e*k  + W/k**2 + Z/k
+    
+    
+    #res =  A + q*M/k + e*np.sin(k) + W/k**2 + Y*np.cos(k) + Z/k + q*V + q*e2*k + q*Z2*k**2
+    #res =  A + q*M/k + e*k + W*np.sin(k) + Y*k**2 + Z*np.cos(k) + q*V + q*e2*k + q*Z2*k**2
+    
+    
+    
+    #res =  A + q*M/k + e*k + W/k**2 + Y*k**2 + Z/k + q*e2*k - 4.*e2*q*k**2
+    
+    #res = np.log1p(A) - np.log1p(e*k) + np.log1p(q*M/k) -0.5*W/k**2 + Y*k**2
+    #res = np.log1p(A) - np.log1p(e*k) + np.log1p(q*M/k) + Y*k**2
+    #res = A - e*k +  q*M/k -0.5*W/k**2 + Y*k**2 -0.5*Z/k
+    #res = A - e*k +  q*M/k -0.5*W/k**2 + Y*k**2
+    
+    #res = - np.log1p(e*k) + np.log1p(q*M/k) -0.5*W/k**2 + Y*k**2 -0.5*Z/k + q*M*W/k**3/3. + q*M*Z/k**2/3. - 0.5*A + q*M*A/k/3.
+    
+    #return 1.-res
+    #return 1.+res
+    #return 1.+delta
+
+def sigmasq(a,b,c,d,k,eta):
+    l = computeTrackLength(eta)
+    #res1 = a1*np.power(l1,2) + c1*np.power(l1,4)*np.power(p1,2) + b1*np.power(l1,2)/(1+d1/(np.power(p1,2)*np.power(l1,2)))
+    #return a*l**2 + c*l**4/k**2 + b*l**2/(1.+d*k**2/l**2)
+    #return a*l**2 + c*l**4/k**2*(1.+b*k**2/l**2)/(1.+d*k**2/l**2)
+    
+    
+    a = a**2
+    #c = c**2
+    d = np.sqrt(1.+d**2)-1.
+    
+    ##res = a*l**2 + c*l**4/k**2 + b*l**2/(1.+d*k**2/l**2)
+    #res = a*l**2 + c*l**4/k**2*(1.+b*k**2*l**2)/(1.+d*k**2*l**2)
+    
+    #res = a*l**2 + c*l**4/k**2 + b*l**2/(1.+d*k**2/l**2)
+    #res = (a + b*k**2 + c*k**4)/(1.+ d*k**2)/k**2
+    #res = a + c/k**2 + b/(1.+d*k**2)
+    ##V = (10.+V)**2
+    #Z2 = (10.+Z2)**2
+    
+    #V = np.exp(V)
+    #Z2 = np.exp(Z2)
+    
+    #V = (1.+V)**2
+    #Z2 = (1.+Z2)**2
+    
+    res = a + c/k**2 + b/(1.+d*k**2)
+    #res = a + c/k**2 + b/(1.+d*k**2) + V/(1.+Z2*k**2)
+    #res = a + c/k**2 + b/(1.+d*k**2)
+    
+    #res = a + 1./k**2*(c + b*k**2 + V*k**4)/(1.+d*k**2+Z2*k**4)
+    #res = a**2 + c**2/k**2 + b/k + d**2*k**2
+    #res = a**2 + c**2/k**2 + b**2/k + d**2*k**2
+    
+    return res
+
+def logsigpdf(kr, scale, res):
+
+    mu = scale
+    sigma = res
+    
+    #sigma = 1e-4
+    
+    alpha = 3.0
+    alpha1 = alpha
+    alpha2 = alpha
+    
+    #A1 = np.exp(0.5*alpha1**2)
+    #A2 = np.exp(0.5*alpha2**2)
+    
+    logA1 = 0.5*alpha1**2
+    logA2 = 0.5*alpha2**2
+    
+    A1 = np.exp(logA1)
+    A2 = np.exp(logA2)
+    
+    t = (kr - mu)/sigma
+    tleft = np.minimum(t,-alpha1)
+    tright = np.maximum(t,alpha2)
+    tcore = np.clip(t,-alpha1,alpha2)
+    #tleft = np.where(t<-alpha1, t, -alpha1)
+    #tright = np.where(t>=alpha2, t, alpha2)
+    
+    #pdfcore = np.exp(-0.5*tcore**2)
+    #pdfleft = A1*np.exp(alpha1*tleft)
+    #pdfright = A2*np.exp(-alpha2*tright)
+    
+    pdfcore = -0.5*tcore**2
+    pdfleft = np.log(A1) + alpha1*tleft
+    pdfright = np.log(A2) - alpha2*tright
+    
+    logpdf = np.where(t<-alpha1, pdfleft, np.where(t<alpha2, pdfcore, pdfright))
+    
+    #thigh = (np.log(3.)-mu)/sigma
+    #tlow = (-np.log(3.)-mu)/sigma
+    
+    thigh = (2.-mu)/sigma
+    tlow = (0.-mu)/sigma
+    
+    
+    #Icore = (scipy.special.ndtr(alpha2) - scipy.special.ndtr(-alpha1))*sigma*np.sqrt(2.*np.pi)
+    #Icore = 0.5*(scipy.special.erf(alpha2/np.sqrt(2.)) - scipy.special.erf(-alpha1/np.sqrt(2.)))*sigma*np.sqrt(2.*np.pi)
+    #Ileft = (sigma/alpha1)*A1*(np.exp(-alpha1**2) - np.exp(alpha1*tlow))
+    #Iright = (sigma/alpha2)*A2*(np.exp(-alpha2*thigh) - np.exp(-alpha2**2))
+    
+    #Ileft = (sigma/alpha1)*np.exp(-0.5*alpha1**2)
+    #Iright = (sigma/alpha2)*np.exp(-0.5*alpha2**2)
+    
+    
+    t1 = np.clip(-alpha1, tlow, thigh)
+    t2 = np.clip(alpha2, tlow, thigh)
+    Icore = 0.5*(scipy.special.erf(t2/np.sqrt(2.)) - scipy.special.erf(t1/np.sqrt(2.)))*sigma*np.sqrt(2.*np.pi)
+    Ileft = (sigma/alpha1)*A1*(np.exp(alpha1*t1) - np.exp(alpha1*tlow))
+    Iright = (sigma/alpha2)*A2*(np.exp(-alpha2*thigh) - np.exp(-alpha2*t2))
+
+    
+    I = Icore + Ileft + Iright
+    
+    #I = np.where(np.logical_and(tlow<-alpha1,thigh>alpha2),I,np.nan)
+    
+    return logpdf - np.log(I)
+
+def loggauspdfbinned(mu,sigma,krs):
+    krs = krs[np.newaxis,np.newaxis,np.newaxis,:]
+    width = krs[...,1:] - krs[...,:-1]
+    #krl = krs[...,0]
+    #krh = krs[...,-1]
+    
+    kr = 0.5*(krs[...,1:] + krs[...,:-1])
+
+    t = (kr - mu)/sigma
+    
+    logpdf = -0.5*t**2
+    
+    I = np.sum(width*np.exp(logpdf),axis=-1,keepdims=True)
+    
+    return logpdf - np.log(I)
+    
+    
+
+def logsigpdfbinned(mu,sigma,krs):
+    
+    krs = krs[np.newaxis,np.newaxis,np.newaxis,:]
+    width = krs[...,1:] - krs[...,:-1]
+    #krl = krs[...,0]
+    #krh = krs[...,-1]
+    
+    #krl = krl[...,np.newaxis]
+    #krh = krh[...,np.newaxis]
+    
+    kr = 0.5*(krs[...,1:] + krs[...,:-1])
+
+    #sigma = 2e-3
+    
+    alpha = 3.0
+    alpha1 = alpha
+    alpha2 = alpha
+    
+    A1 = np.exp(0.5*alpha1**2)
+    A2 = np.exp(0.5*alpha2**2)
+    
+    t = (kr - mu)/sigma
+    tleft = np.minimum(t,-alpha1)
+    tright = np.maximum(t,alpha2)
+    tcore = np.clip(t,-alpha1,alpha2)
+    #tleft = np.where(t<-alpha1, t, -alpha1)
+    #tright = np.where(t>=alpha2, t, alpha2)
+    
+    #pdfcore = np.exp(-0.5*tcore**2)
+    #pdfleft = A1*np.exp(alpha1*tleft)
+    #pdfright = A2*np.exp(-alpha2*tright)
+    
+    pdfcore = -0.5*tcore**2
+    pdfleft = np.log(A1) + alpha1*tleft
+    pdfright = np.log(A2) - alpha2*tright
+    
+    logpdf = np.where(t<-alpha1, pdfleft, np.where(t<alpha2, pdfcore, pdfright))
+    
+    I = np.sum(width*np.exp(logpdf),axis=-1,keepdims=True)
+    
+
+    
+    #Icore = (scipy.special.ndtr(alpha2) - scipy.special.ndtr(-alpha1))*sigma*np.sqrt(2.*np.pi)
+    #Ileft = (sigma/alpha1)*np.exp(-0.5*alpha1**2)
+    #Iright = (sigma/alpha2)*np.exp(-0.5*alpha2**2)
+    
+    #I = Icore + Ileft + Iright
+    
+    #print("I")
+    #print(I)
+    
+    return logpdf - np.log(I)
+
+def loggauspdf(kr, scale, res):
+
+    mu = scale
+    sigma = res
+    
+    t = (kr - mu)/sigma
+    
+    pdf = -0.5*t**2 - np.log(sigma) - 0.5*np.log(2.*np.pi)
+    
+    #thigh = (np.log(3.)-mu)/sigma
+    #tlow = (-np.log(3.)-mu)/sigma
+    
+    thigh = (2.-mu)/sigma
+    tlow = (0.-mu)/sigma
+    
+    #I = scipy.special.ndtr(thigh) - scipy.special.ndtr(tlow)
+    I = 0.5*(scipy.special.erf(thigh/np.sqrt(2.)) - scipy.special.erf(tlow/np.sqrt(2.)))
+    logI = np.log(I)
+    
+    #logI = np.log(sigma) + 0.5*np.log(2.*np.pi)
+    
+    return pdf - logI
+
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-6, 1e-3, 1e-3, 1e-7])
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-6, 1e-3, 1e-3, 1e-7,1e2])
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-6, 1e-3, 1e-3, 1e-7,1.])
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-6, 1e-3, 1e-3, 1e-7,1.])
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-6, 1e-3, 1e-3, 1e-7,1e2])
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-3, 1e-3, 1e-7,1.])
+
+
+def nllbinned(parms, dataset, krs):
+    mu = parms[...,0]
+    sigma = parms[...,1]
+    
+    #sigma = np.sqrt(sigmasq)
+    sigma = np.where(sigma>0.,sigma,np.nan)
+    
+    #mu = 1. + 0.1*np.tanh(mu)
+    #sigma = 1e-3*(1. + np.exp(sigma))
+    
+    
+    mu = mu[...,np.newaxis]
+    sigma = sigma[...,np.newaxis]
+    
+    logpdf = logsigpdfbinned(mu,sigma,krs)
+    #logpdf = loggauspdfbinned(mu,sigma,krs)
+    
+    nll = -np.sum(dataset*logpdf, axis=-1)
+    #nll += np.squeeze(sigma,axis=-1)**2
+    #nll += sigma**2
+    
+    return nll
+
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-6, 1e-3, 1e-3, 1e-7,1.,1e-4,1e-2])
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-6, 1e-3, 1e-3, 1e-7,1.])
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-3, 1e-3, 1e-7,1.])
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-3, 1e-3, 1e-7,1.,1e-4,1e-2])
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-3, 1e-3, 1e-7,1.,1e-4,1e-2,1e-4])
+#parmscale = np.array([1e-4, 1e-3, 1e-5, 1e-3, 1e-3, 1e-7,1.,1e-4,1e-2,1e-4,1e-6,1e-3,1e-4,1e-2])
+#parmscale = np.array([1e-4, 1e-3, 1e-5,1e-6,1e-4,1e-2,1e-3, 1e-3, 1e-7,1.])
+#parmscale = np.array([1e-4, 1e-3, 1e-5,1e-6,1e-4,1e-2,1e-3, 1e-3, 1e-7,1.,1e-6,1e-3,1e-4,1e-2])
+#parmscale = np.array([1e-4, 1e-3, 1e-5,1e-6,1e-4,1e-2,1e-3, 1e-3, 1e-7,1.,1e-3,1e-2])
+#parmscale = np.array([1e-4, 1e-3, 1e-5,1e-6,1e-4,1e-2,1e-3, 1e-3, 1e-7,1.])
+
+#parmscale = np.array([1e-4, 1e-3, 1e-5,1e-3, 1e-3, 1e-7,1.,1e-6,1e-4,1e-5])
+
+
+#parmscale = np.array([1e-4, 1e-3, 1e-5,1e-3, 1e-3, 1e-7,1.,1e-6,1e-4,1e-5,1e-4,1e-4,1e-4])
+#parmscale = np.array([1e-4, 1e-3, 1e-5,1e-3, 1e-3, 1e-7,1.,1e-2,1.,1.,1.,1.,1.])
+
+parmscale = np.array([1e-4, 1e-3, 1e-5,1e-3, 1e-3, 1e-7,1.])
+#parmscale = np.array([1e-4,1., 1e-5,1e-3, 1e-3, 1e-7,1.,1.,1.,1.,1.,1.,1.])
+
+#parmscale = np.array([1.,1.,1.,1e-3, 1e-3, 1e-7,1.,1.,1.,1.,1.,1.,1.])
+
+#parmscale = 1.
+
+
+
+def nll(parms,dataset,eta,ntotal):
+    parms = parms*parmscale
+    
+    A = parms[0]
+    e = parms[1]
+    M = parms[2]
+    a = parms[3]
+    b = parms[4]
+    c = parms[5]
+    d = parms[6]
+
+    #e2 = parms[10]
+    #Z2 = parms[11]
+    
+    #V = parms[10]
+    #e2 = parms[11]
+    ##W2 = parms[12]
+    #Z2 = parms[13]
+
+    #V = np.zeros_like(A)
+    #W2 = np.zeros_like(A)
+
+    #a = a**2
+    ##b = b**2
+    #c = c**2
+    #d = d**2
+    
+    
+    #a = np.where(a>0.,a,np.nan)
+    #b = np.where(b>0.,b,np.nan)
+    #c = np.where(c>0.,c,np.nan)
+    #d = np.where(d>0.,d,np.nan)
+    
+    #W = np.zeros_like(A)
+    #Y = np.zeros_like(A)
+    #Z = np.zeros_like(A)
+    
+    #a = parms[3]
+    #b = parms[4]
+    #c = parms[5]
+    #d = parms[6]
+    
+    #A = A*1e-4
+    #e = e*1e-3
+    #M = M*1e-5
+    #W = W*1e-6
+    #a = a*1e-3
+    #b = b*1e-3
+    #c = c*1e-7
+    #d = 100.*d
+    
+    #W = np.zeros_like(A)
+    
+    #d = 370.*np.ones_like(a)
+    #b = np.exp(b)
+    #d = np.exp(d)
+    #b = b**2
+    #d = d**2
+    
+    #eta = dataset[...,0]
+    q = dataset[...,1]
+    kgen = dataset[...,2]
+    kr = dataset[...,3]
+    #krec = kr*kgen
+    
+    #scalem = scale(A,e,M,W,Y,Z,kgen, q, eta)
+    resmsq = sigmasq(a,b,c,d,kgen,eta)
+    resm = np.sqrt(resmsq)
+    scalem = scale(A,e,M,kgen, q, eta)
+        
+    #pdf = logsigpdf(krec,kgen, scalem, resm)
+    #pdf = loggauspdf(krec, kgen, scalem, resm)
+    pdf = logsigpdf(kr, scalem, resm)
+    #pdf = loggauspdf(kr, scalem, resm)
+    nll = -np.sum(pdf)
+    #nll += Z**2
+    #nll += b**2
+    #nll += 1000.*(a**2 + b**2 + c**2 + d**2)
+    #nll += 1e6*(M**2 + Y**2 + V**2 + e2**2 + Z2**2)
+    ##nll += 1e6*(Y**2 + V**2 + e2**2 + Z2**2)
+    cweight = dataset.shape[0]/ntotal
+    
+    print("dataset.shape[0], ntotal, cweight",dataset.shape[0], ntotal, cweight)
+    
+    #nll += 0.5*cweight*(Z**2 +  e2**2 + Z2**2 + V**2 + e**2)
+    #nll += 0.5*cweight*(Z**2 +  e2**2 + Z2**2 + V**2 + e**2)
+    #nll += 0.5*cweight*(Z**2 +  e2**2 + Z2**2 + V**2)
+    #nll += 0.5*cweight*(Z**2 +  e2**2)
+    
+    #nll += 0.5*cweight/10.**2*W**2
+    #nll += 0.5*cweight/1e6**2*Y**2
+    #nll += 0.5*cweight/0.01**2*e**2
+    #nll += 0.5*cweight*e**2
+    #nll += 0.5*cweight*Z**2
+    #nll += 0.5*cweight*e2**2
+    #nll += 0.5*cweight*W**2
+    #nll += 0.5*cweight*Y**2
+    #nll += 0.5*cweight*Z**2
+    
+    #nll += 0.5*cweight*e**2
+    #nll += 0.5*cweight*A**2
+    #nll += 0.5*cweight*M**2
+    #nll += 0.5*cweight*W**2
+    #nll += 0.5*cweight*Z**2
+    ##nll += 0.5*cweight*Y**2
+    #nll += 0.5*cweight*e2**2
+    
+    #nll += 0.5*cweight*V**2
+    ##nll += 0.5*cweight*b**2
+    ##nll += 0.5*cweight*a
+    ##nll += 0.5*cweight*c
+    #nll += 0.5*cweight*Z2**2
+    
+    #nll += 0.5*cweight/1e-3**2*e**2
+    #nll += 0.5*cweight*(Z**2)
+    
+    #nll += 0.5*cweight/1000.**2*(A**2 + W**2)
+    #nll += 0.5*cweight/100.**2*W**2
+    #nll += 0.5*cweight/100.**2*Y**2
+    
+    #nll = np.where(np.any(sigma<=0.,), np.nan, nll)
+    
+    return nll
+
+def nllfull(parms,dataset,ieta,etas):
+    parms = parms*parmscale[np.newaxis,:parms.shape[-1]]
+    
+    etasc = 0.5*(etas[1:] + etas[:-1])
+    
+    #eta = dataset[...,0]
+    kgen = dataset[...,2]
+    q = dataset[...,3]
+    krec = dataset[...,4]
+    
+    parms = parms[ieta]
+    eta = etasc[ieta]
+    
+    A = parms[...,0]
+    e = parms[...,1]
+    M = parms[...,2]
+    W = parms[...,3]
+    a = parms[...,4]
+    b = parms[...,5]
+    c = parms[...,6]
+    d = parms[...,7]
+    #Y = parms[:,8]
+    #Z = parms[:,9]
+    
+    Y = np.zeros_like(A)
+    Z = np.zeros_like(A)
+    
+    scalem = scale(A,e,M,W, Y,Z, kgen, q, eta)
+    resm = np.sqrt(sigmasq(a,b,c,d,kgen,eta))
+        
+    pdf = logsigpdf(krec,kgen, scalem, resm)
+    nll = -np.sum(pdf)
+    
+    return nll
+
+def nllpll(parms,dataset,ieta,etas):
+    #parms = parms*parmscale[np.newaxis,:]
+    parms = parms*parmscale[np.newaxis,:parms.shape[-1]]
+    
+    etasc = 0.5*(etas[1:] + etas[:-1])
+    
+    #eta = dataset[...,0]
+    q = dataset[...,1]
+    kgen = dataset[...,2]
+    kr = dataset[...,3]
+    krec = kr*kgen
+    
+    parms = parms[ieta]
+    eta = etasc[ieta]
+    
+    A = parms[...,0]
+    e = parms[...,1]
+    M = parms[...,2]
+    W = parms[...,3]
+    a = parms[...,4]
+    b = parms[...,5]
+    c = parms[...,6]
+    d = parms[...,7]
+    Y = parms[...,8]
+    Z = parms[...,9]
+    
+    #Y = np.zeros_like(A)
+    #Z = np.zeros_like(A)
+    
+    scalem = scale(A,e,M,W, Y,Z, kgen, q, eta)
+    resm = np.sqrt(sigmasq(a,b,c,d,kgen,eta))
+        
+    pdf = logsigpdf(krec,kgen, scalem, resm)
+    
+    nll = -jax.ops.segment_sum(pdf,ieta,etas.shape[0]-1)
+    
+    nllsum = -np.sum(pdf)
+    #return -pdf
+    
+    return nll,nllsum
+    #return nll
+
+#def fgpll(parms,dataset,ieta,etas):
+#fgi = jax.vmap(jax.value_and_grad(nllpll), in_axes=(None,0,0,None))
+
+#def fgpll(parms,dataset,ieta,etas):
+    #val,grad = fgi(parms,dataset,ieta,etas)
+    #val = jax.ops.segment_sum(val,ieta,etas.shape[0]-1)
+    #grad = np.sum(grad,axis=0)
+    #return val, grad
+
+   
+def parmsg(parms):    
+    A = parms[...,0]
+    e = parms[...,1]
+    M = parms[...,2]
+    #W = parms[...,3]
+    #Y = parms[...,4]
+    #Z = parms[...,5]
+    a = parms[...,3]
+    b = parms[...,4]
+    c = parms[...,5]
+    d = parms[...,6]
+    W = parms[...,7]
+    Y = parms[...,8]
+    Z = parms[...,9]
+    #e2 = parms[...,10]
+    #Z2 = parms[...,11]
+    
+    
+    a = a**2
+    b = b**2
+    c = c**2
+    d = d**2
+    
+    g = b/c + d
+    
+    parms = np.stack((A,e,M,a,g,c,d,W,Y,Z),axis=-1)
+    
+    #parms = np.stack((A,e,M,W,Y,Z,a,g,c,d,e2,Z2),axis=-1)
+    #parms = np.stack((A,e,M,W,Y,Z,a,g,c,d),axis=-1)
+    #parms = np.stack((A,e,M,W,Y,Z,a,g,c,d),axis=-1)
+    #parms = np.stack((A,e,M,a,g,c,d,Y,Z,V),axis=-1)
+    #parms = np.stack((A,e,M,a,g,c,d,Y,Z,V,W,e2,W2,Z2),axis=-1)
+    #parms = np.stack((A,e,M,a,g,c,d),axis=-1)
+    #parms = np.stack((A,e,M,a,g,c,d,Y,Z),axis=-1)
+    #parms = np.stack((A,e,M,W,a,g,c,d),axis=-1)
+    #parms = np.stack((A,e,M,W,a,g,c,d,Y,Z),axis=-1)
+    return parms   
+
+#jacg = jax.jit(jax.vmap(jax.jacfwd(parmsg)))
+jacg = jax.jit(jax.jacfwd(parmsg))
+
+   
+#dataDir = "/data/bendavid/cmsdocker7/home/cmsusr/muoncaldata"
+#dataDir = "/data/bendavid/muoncaldata"
+dataDir = "./"
+
+#files = [f"{dataDir}/muonTree.root", f"{dataDir}/muonTreeMCZ.root"]
+#minpts = [3.3, 12.]
+#minpts = [4., 12.]
+#cuts at 4 or 5, 12 here to avoid edge effects
+
+#dsets = []
+#for f, minpt in zip(files,minpts):
+    #for idx in [1,2]:
+        #d = makeData(f,idx,minpt)
+        ##dset = onp.stack( (d["eta"], d["phi"], d["kgen"],d["q"],d["krec"]), axis=-1)
+        #dset = onp.stack( (d["eta"],d["q"], d["kgen"],d["kr"]), axis=-1)
+        #print(dset.dtype)
+        ##dset = dset[:int(10e3)]
+        #dsets.append(dset)
+
+#dataset = onp.concatenate(dsets,axis=0)
+
+#f = f"{dataDir}/muonGuntree.root"
+#f = f"{dataDir}/correctedTracks.root"
+#f = "root://eoscms.cern.ch://store/cmst3/group/wmass/bendavid/muoncal/Muplusandminus_Pt3to150-gun/MuonGunGlobalCorRec_GBLAnalyticPropSimpleMF/200909_163449/0000/*.root"
+#f = "/eos/cms/store/cmst3/group/wmass/bendavid/muoncal/Muplusandminus_Pt3to150-gun/MuonGunGlobalCorRec_GBLAnalyticPropSimpleMF/200909_163449/0000/*.root"
+
+#f = "/data2/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_GBLAnalyticPropSimpleMF/200909_163449/0000/globalcor_*.root"
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/globalcorfwd3m.root"
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsrk5en6/*.root"
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsno2dstrip/*.root"
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/globalcor_*.root"
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/globalcor_0.root"
+f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgunfwdsimprecisegen/globalcor_*.root"
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultssim150nom/globalcor_*.root"
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultssim150_zeromaterial/globalcor_*.root"
+
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgenrematched/globalcor_*.root"
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgenhitbias/globalcor_*.root"
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgenhitbias/globalcor_*.root"
+#f = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/results2dstripdiag/globalcor_*.root"
+
+#f = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_v29/200901_130419/0000/*.root"
+#f = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_v16/200827_002333/0000/*.root"
+#f = "/data/bendavid/muoncaldatalarge/Muplusandminus_Pt3to150-gun/MuonGunGlobalCor_v4/200820_002243/0000/*.root"
+#f = "/data/bendavid/muoncaldatalarge//MuonGunGlobalCorRecRefit_v32/200902_125214/0000/*.root"
+#f = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_v35/200904_085030/0000/*.root"
+#f = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_FactorizedGBL/200904_182114/0000/*.root"
+#f = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_GBLNLL/200908_134802/0000/*.root"
+#f = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_GBLNo2dStrip/200909_151136/0000/globalcor*.root"
+#f = f"{dataDir}/correctedTracksPartial.root"
+#fdj = f"{dataDir}/muonTree.root"
+fdj = f"{dataDir}/JpsiToMuMu_JpsiPt8_pythia8.root"
+#fdz = f"{dataDir}/muonTreeMCZ.root"
+fdz = f"{dataDir}/ZJToMuMu_mWPilot.root"
+ftrk = f"{dataDir}/trackTreeP.root"
+
+dsets = []
+
+#d = makeDataTrk(ftrk,33.)
+#dset = onp.stack( (d["etagen"],d["qgen"], d["kgen"],d["kr"]), axis=-1)
+#dsets.append(dset)
+#dset = None
+
+d = makeData(f,5.5)
+dset = onp.stack( (d["eta"],d["q"], d["kgen"],d["kr"]), axis=-1)
+d = None
+dsets.append(dset)
+dset = None
+
+##for fdi,minpt in zip([fdj,fdz], [5.5,12.]):
+#for fdi,minpt in zip([fdj], [5.5]):
+    #for idx in [1,2]:
+        ##d = makeDataDiMuon(fdi,idx,5.5)
+        #d = makeDataDiMuon(fdi,idx,minpt)
+        #dset = onp.stack( (d["eta"],d["q"], d["kgen"],d["kr"]), axis=-1)
+        #dsets.append(dset)
+        #dset = None
+    
+dataset = onp.concatenate(dsets,axis=0)
+dsets = None
+    
+print("charges")
+print(dataset[:,1])
+    
+#dsets = None
+#deta = dataset[:,0]
+#dphi = dataset[:,1]
+#print(dataset.shape)
+
+#multibin fit
+
+
+
+nEtaBins = 48
+#nEtaBins = 24
+####nEtaBins = 480
+etas = onp.linspace(-2.4,2.4, nEtaBins+1, dtype=np.float64)
+
+nEtaBins = 1
+etas = np.linspace(-2.4,-2.3, nEtaBins+1)
+#etas = np.linspace(1.0,1.1, nEtaBins+1)
+#etas = np.linspace(-1.5,-1.4, nEtaBins+1)
+#etas = np.linspace(1.1,1.2, nEtaBins+1)
+#etas = np.linspace(-2.3,-2.2, nEtaBins+1)
+#etas = np.linspace(-2.2,-2.1, nEtaBins+1)
+#etas = np.linspace(-2.3,-2.1, nEtaBins+1)
+#etas = np.linspace(1.5,1.6, nEtaBins+1)
+#etas = np.linspace(-1.1,-0.9, nEtaBins+1)
+#etas = np.linspace(0.5,0.6, nEtaBins+1)
+#etas = onp.linspace(-1.1,-1., nEtaBins+1)
+#etas = np.linspace(-1.02,-1., nEtaBins+1)
+#etas = np.linspace(-2.4,-2.2, nEtaBins+1)
+#etas = np.linspace(-2.4,-2.0, nEtaBins+1)
+
+nPhiBins = 1
+phis = onp.linspace(-np.pi,np.pi, nPhiBins+1, dtype=np.float64)
+
+nkbins = 25
+ks = onp.linspace(1./20., 1./5.5, nkbins+1, dtype=np.float64)
+
+#nptbins = 40
+#ks = 1./onp.linspace(150., 5.5, nptbins+1, dtype=np.float64)
+
+nptbins = 25
+pts = 1./onp.linspace(150., 20., nptbins+1, dtype=np.float64)
+
+ks = onp.concatenate((pts,ks[1:]),axis=0)
+
+# single bin
+#ks = onp.array([0.,1.])
+
+#print(ks)
+#assert(0)
+
+#nkbins = 40
+#ks = 1./onp.linspace(150.,33.,nkbins+1, dtype=np.float64)
+##ks = onp.linspace(1./150., 1./5.5, nkbins+1, dtype=np.float64)
+##ks = onp.linspace(1./150., 1./12., nkbins+1, dtype=np.float64)
+
+
+
+nkbins = ks.shape[0]-1
+
+
+nkbinsfine = 1000
+#ksfine = 1./onp.linspace(100., 3.3, nkbinsfine+1, dtype=np.float64)
+ksfine = onp.linspace(1./150., 1./5.5, nkbinsfine+1, dtype=np.float64)
+
+qs = onp.array([-1.5,0.,1.5], dtype=np.float64)
+#qs = onp.array([0.,1.5], dtype=np.float64)
+
+nqrbins = 10000
+qrs = onp.linspace(-0.05,0.05,nqrbins+1,dtype=np.float64)
+qrsingle = onp.array([-0.05,0.05],dtype=np.float64)
+#qrs = onp.linspace(-np.log(3.),np.log(3.),nqrbins+1,dtype=np.float64)
+#qrsingle = onp.array([-np.log(3.),np.log(3.)],dtype=np.float64)
+
+nBins = nEtaBins*nPhiBins
+
+#dsetbinning = onp.stack((dataset[:,0], dataset[:,1], dataset[:,2], dataset[:,3]/dataset[:,2]), axis=-1)
+
+etacond = onp.logical_and(dataset[:,0]>=etas[0], dataset[:,0]<etas[-1])
+dataset = dataset[onp.where(etacond)]
+
+
+
+hdset = onp.histogramdd(dataset, (etas,qs,ks,qrs))[0]
+
+hdsetsingle = onp.histogramdd(dataset, (etas,qs,ks,qrsingle))[0]
+hdsetsinglew = onp.histogramdd(dataset, (etas,qs,ks,qrsingle), weights=dataset[:,2])[0]
+
+hdsetks = hdsetsinglew/hdsetsingle
+hdsetks = onp.squeeze(hdsetks,axis=-1)
+
+
+nllbinnedsum = lambda *args: np.sum(nllbinned(*args),axis=(0,1,2))
+gbinned = jax.grad(nllbinnedsum)
+
+def fgbinned(*args):
+    return nllbinned(*args), gbinned(*args)
+
+gbinnedsum = lambda *args: np.sum(gbinned(*args),axis=(0,1,2))
+jacbinned = jax.jacrev(gbinnedsum)
+hbinned = lambda *args: np.moveaxis(jacbinned(*args),0,-1)
+
+fgbinned = jax.jit(fgbinned)
+hbinned = jax.jit(hbinned)
+
+#fgbinned = lbatch_accumulate(fgbinned, batch_size=int(1), in_axes=(0,0,None))
+#hbinned = lbatch_accumulate(hbinned, batch_size=int(1), in_axes=(0,0,None))
+
+
+#xmu = np.zeros((nEtaBins,2,nkbins),dtype=np.float64)
+xmu = np.zeros((nEtaBins,2,nkbins),dtype=np.float64)
+xsigma = (5e-3)*np.ones((nEtaBins,2,nkbins),dtype=np.float64)
+xbinned = np.stack((xmu,xsigma),axis=-1)
+
+#val = nllbinned(xbinned, hdset, qrs)
+#assert(0)
+
+htest = hbinned(xbinned,hdset,qrs)
+print(htest.shape)
+
+
+
+#xbinned = pmin(fgbinned, xbinned, (hdset,qrs), jac=True, h=None, edmtol = 1e-3, reqposdef = False)
+xbinned = pmin(fgbinned, xbinned, (hdset,qrs), jac=True, h=hbinned)
+
+hessbinned = hbinned(xbinned, hdset, qrs)
+covbinned = np.linalg.inv(hessbinned)
+
+errsbinned =  np.sqrt(np.diagonal(covbinned, offset=0, axis1=-1, axis2=-2))
+
+
+
+onp.savez_compressed("unbinnedfitglobalitercor.npz",
+                     xbinned = xbinned,
+                     errsbinned = errsbinned,
+                     hdsetks = hdsetks,
+                     etas = etas,
+                     ks = ks,
+)

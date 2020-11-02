@@ -12,13 +12,27 @@ def computeTrackLength(eta):
     #print(L)
     return L0/L
 
-#imgtype = "png"
-imgtype = "pdf"
+imgtype = "png"
+#imgtype = "pdf"
 
 #f = np.load("unbinnedfit.npz")
 
 #fname = "unbinnedfitfullagnostic.npz"
-fname = "unbinnedfit.npz"
+#fname = "unbinnedfitkf.npz"
+
+#fname = "unbinnedfitkforig.npz"
+#fname = "unbinnedfitkfrefit.npz"
+#fname = "unbinnedfitglobal.npz"
+#fname = "unbinnedfitglobalcor.npz"
+#fname = "unbinnedfitglobaliter.npz"
+#fname = "unbinnedfitkforig.npz"
+fname = "unbinnedfitglobalitercor.npz"
+
+#fname = "unbinnedfitglobalcortest.npz"
+#fname = "unbinnedfitglobal.npz"
+#fname = "scalecheckpoint2/unbinnedfit.npz"
+#fname = "scalerescheckpoint/unbinnedfit_2den.npz"
+#fname = "scalerescheckpoint/unbinnedfit_3den.npz"
 #fname = "unbinnedfit_gun_jpsi.npz"
 #fname = "unbinnedfitfullselected.npz"
 #fname = "unbinnedfitfullselectedfixedgausexp.npz"
@@ -162,30 +176,30 @@ print(ks)
          ##"",
          #]
          
-parms = ["A",
-         "e",
-         "M",
-         "$a^2$",
-         "$b^2$",
-         "$c^2$",
-         "$d^2$",
-         "W",
-         "Y",
-         "Z",
-         "V",
-         "e2",
-         "Z2",
-         ]
+#parms = ["A",
+         #"e",
+         #"M",
+         #"$a^2$",
+         #"$b^2$",
+         #"$c^2$",
+         #"$d^2$",
+         #"W",
+         #"Y",
+         #"Z",
+         #"V",
+         #"e2",
+         #"Z2",
+         #]
 
-A,e,M,a,b,c,d,W,Y,Z,V,e2,Z2 = xs.T
-Aerr,eerr,Merr,aerr,berr,cerr,derr,Werr,Yerr,Zerr,Verr,e2err,Z2err = xerrs.T
+#A,e,M,a,b,c,d,W,Y,Z,V,e2,Z2 = xs.T
+#Aerr,eerr,Merr,aerr,berr,cerr,derr,Werr,Yerr,Zerr,Verr,e2err,Z2err = xerrs.T
 
-Yalt = np.sqrt(1.+Y**2)-1.
-#Yerralt = np.exp(Y)*Yerr
-Yerralt = Yerr
+#Yalt = np.sqrt(1.+Y**2)-1.
+##Yerralt = np.exp(Y)*Yerr
+#Yerralt = Yerr
 
-dalt = d**2*l**2
-derralt = 2*np.abs(d)*derr*l**2
+#dalt = d**2*l**2
+#derralt = 2*np.abs(d)*derr*l**2
 
 #plot = plt.figure()
 #plt.errorbar(etasc,dalt, xerr = 0.5*etasw, yerr = derralt, fmt="none")
@@ -193,7 +207,7 @@ derralt = 2*np.abs(d)*derr*l**2
 
 #plt.show()
 
-if True:
+if False:
     A,e,M,a,b,c,d,W,Y,Z,V,e2,Z2 = xs.T
     Aerr,eerr,Merr,aerr,berr,cerr,derr,Werr,Yerr,Zerr,Verr,e2err,Z2err = xerrs.T
 
@@ -484,26 +498,28 @@ if False:
     #plt.show()
 
 for iparm in range(xs.shape[1]):
+    label = f"parm_{iparm}"
     val = xs[:,iparm]
     err = xerrs[:,iparm]
     
-    isres = iparm>2 and iparm<7
+    isres = iparm in [12,16]
     
     if isres:
-        err = np.abs(2.*val)*err
-        val = val**2
+        val = np.abs(val)
+        #err = np.abs(2.*val)*err
+        #val = val**2
     
     plot = plt.figure()
     plt.errorbar(etasc, val, xerr=0.5*etasw, yerr=err,fmt='none')
-    plt.title(parms[iparm])
+    plt.title(label)
     plt.xlabel("$\eta$")
-    if isres:
-        plt.ylim(bottom=0.)
+    #if isres:
+        #plt.ylim(bottom=0.)
     plot.savefig(f"plots/parm_{iparm}.{imgtype}")
 
 
 
-plt.show()
+#plt.show()
 #assert(0)
 
 for ieta in range(etasc.shape[0]):
@@ -571,11 +587,16 @@ for ieta in range(etasc.shape[0]):
     sigmabinnedminuserr = 2.*sigmabinnedminus*sigmabinnedminuserr
     sigmabinnedplus = sigmabinnedplus**2
     sigmabinnedminus = sigmabinnedminus**2
-
-    sigmamodelfinepluserr = 2.*sigmamodelfineplus*sigmamodelfinepluserr
-    sigmamodelfineminuserr = 2.*sigmamodelfineminus*sigmamodelfineminuserr
+    
+    sigmamodelfinepluserr = 2.*sigmamodelfineplus*scalemodelfinepluserr
+    sigmamodelfineminuserr = 2.*sigmamodelfineminus*scalemodelfineminuserr
     sigmamodelfineplus = sigmamodelfineplus**2
-    sigmamodelfineminus = sigmamodelfineminus**2    
+    sigmamodelfineminus = sigmamodelfineminus**2
+
+    #sigmamodelfinepluserr = 2.*sigmamodelfineplus*sigmamodelfinepluserr
+    #sigmamodelfineminuserr = 2.*sigmamodelfineminus*sigmamodelfineminuserr
+    #sigmamodelfineplus = sigmamodelfineplus**2
+    #sigmamodelfineminus = sigmamodelfineminus**2    
     
     
     print("scalemodelfinepluserr.shape", scalemodelfinepluserr.shape)

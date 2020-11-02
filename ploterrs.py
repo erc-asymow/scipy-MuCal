@@ -15,6 +15,8 @@ def computeTrackLength(eta):
 #imgtype = "png"
 imgtype = "pdf"
 
+plotdir = "compresmixedtriplecheckpoint/plots"
+
 #f = np.load("unbinnedfit.npz")
 
 #fname = "unbinnedfitfullagnostic.npz"
@@ -22,7 +24,12 @@ imgtype = "pdf"
 #fname = "unbinnedfiterrseig.npz"
 #fname = "unbinnedfiterrsTlog_12.npz"
 #fname  = "unbinnedfiterrseigdiaga01.npz"
-fname = "unbinnedfiterrsmed.npz"
+
+#fname = "unbinnedfiterrsmed.npz"
+
+#fname = "compresmixedtriplecheckpoint/unbinnedfiterrsmedfulldiag.npz"
+fname = "compresmixedtriplecheckpoint/unbinnedfiterrsmednodiag.npz"
+
 #fname = "comprestriple/unbinnedfiterrsmeddiagfullreg.npz"
 #fname = "compresnodiag/unbinnedfiterrsmedfull.npz"
 #fname = "compresnodiag/unbinnedfiterrsmed012.npz"
@@ -211,8 +218,8 @@ sortidxs = np.argsort(ds, axis=-1)
 #sortidxs = np.argsort(np.abs(ds-30.), axis=-1)
 #sortidxs = np.argsort(np.abs(ds-8.), axis=-1)
 
-#ds = np.take_along_axis(ds,sortidxs,axis=-1)
-#derrs = np.take_along_axis(derrs,sortidxs,axis=-1)
+ds = np.take_along_axis(ds,sortidxs,axis=-1)
+derrs = np.take_along_axis(derrs,sortidxs,axis=-1)
 
 #print(sortidxs)
 #print(ds)
@@ -231,6 +238,14 @@ for i,(val,err) in enumerate(zip(ds.T,derrs.T)):
 netabins = etasc.shape[0]
 nelems = scalesigmamodelfine.shape[-1]
 
+plot.savefig(f"{plotdir}/dstack.{imgtype}")
+
+print(ds[6])
+print(derrs[6])
+
+
+
+#plt.show()
 
 #gidxs = tuple(range(2,5)) + tuple(range(7,10))
 gidxs = (0,5)
@@ -288,7 +303,7 @@ if True:
     #plt.title(label)
     #plt.xlabel("$\eta$")
     
-plt.show()
+#plt.show()
 
 if False:
 #if True:
@@ -407,11 +422,11 @@ for ieta in range(etasc.shape[0]):
         
         plot = plt.figure()
         plt.fill_between(ksfine,scalemodelfineplus-scalemodelfinepluserr,scalemodelfineplus+scalemodelfinepluserr, alpha=0.5)
-        plt.plot(ksfine, scalemodelfineplus)
+        plt.plot(ksfine, scalemodelfineplus,linewidth=0.5)
         plt.fill_between(-ksfine,scalemodelfineminus-scalemodelfineminuserr,scalemodelfineminus+scalemodelfineminuserr, alpha=0.5)
-        plt.plot(-ksfine, scalemodelfineminus)
-        plt.errorbar(ksplus,scalebinnedplus, xerr=xerrplus, yerr=scalebinnedpluserr,fmt='none')
-        plt.errorbar(-ksminus,scalebinnedminus, xerr=-xerrminus, yerr=scalebinnedminuserr,fmt='none')
+        plt.plot(-ksfine, scalemodelfineminus,linewidth=0.5)
+        plt.errorbar(ksplus,scalebinnedplus, xerr=xerrplus, yerr=scalebinnedpluserr,fmt='none',elinewidth=0.5,zorder=100)
+        plt.errorbar(-ksminus,scalebinnedminus, xerr=-xerrminus, yerr=scalebinnedminuserr,fmt='none',elinewidth=0.5,zorder=100)
         plt.xlabel("$q\ k$ (GeV$^{-1}$)")
         plt.ylabel("$\sigma^2_k/k^2$")
         plt.title(f"Covariance Matrix ele{ielem}, ${etasl[ieta]:.1f}\leq \eta < {etash[ieta]:.1f}$")
@@ -419,23 +434,23 @@ for ieta in range(etasc.shape[0]):
         #p1 = plt.plot(ksfine, scaleplusalt)
         #plt.legend((p1,),('$-M/k - 0.5\sigma^2$',))
         #plt.show()
-        plt.savefig(f"plots/scale_{ieta}.{imgtype}")
+        plt.savefig(f"{plotdir}/scale_{ieta}_{ielem}.{imgtype}")
         
-        if False:
+        if True:
             plot = plt.figure()
             plt.fill_between(1./ksfine,scalemodelfineplus-scalemodelfinepluserr,scalemodelfineplus+scalemodelfinepluserr, alpha=0.5)
-            plt.plot(1./ksfine, scalemodelfineplus)
-            #plt.fill_between(-1./ksfine,scalemodelfineminus-scalemodelfineminuserr,scalemodelfineminus+scalemodelfineminuserr, alpha=0.5)
-            #plt.plot(-1./ksfine, scalemodelfineminus)
-            plt.errorbar(1./ksplus,scalebinnedplus, xerr=xerrpluspt, yerr=scalebinnedpluserr,fmt='none')
-            #plt.errorbar(-1./ksminus,scalebinnedminus, xerr=-xerrminuspt, yerr=scalebinnedminuserr,fmt='none')
+            plt.plot(1./ksfine, scalemodelfineplus,linewidth=0.5)
+            plt.fill_between(-1./ksfine,scalemodelfineminus-scalemodelfineminuserr,scalemodelfineminus+scalemodelfineminuserr, alpha=0.5)
+            plt.plot(-1./ksfine, scalemodelfineminus,linewidth=0.5)
+            plt.errorbar(1./ksplus,scalebinnedplus, xerr=xerrpluspt, yerr=scalebinnedpluserr,fmt='none',elinewidth=0.5,zorder=100)
+            plt.errorbar(-1./ksminus,scalebinnedminus, xerr=-xerrminuspt, yerr=scalebinnedminuserr,fmt='none',elinewidth=0.5,zorder=100)
             #plt.errorbar(1./ksplus,scalebinnedplus*ksplus**2, xerr=xerrpluspt, yerr=scalebinnedpluserr*ksplus**2,fmt='none')
             #plt.errorbar(-1./ksminus,scalebinnedminus*ksminus**2, xerr=-xerrminuspt, yerr=scalebinnedminuserr*ksplus**2,fmt='none')
             plt.xlabel("$q\ p_T$ (GeV)")
             plt.ylabel("$\sigma^2_k/k^2$")
             plt.title(f"Covariance Matrix ele{ielem}, ${etasl[ieta]:.1f}\leq \eta < {etash[ieta]:.1f}$")
             #plt.plot(1./ksfine,scaleplusalt)
-            plt.savefig(f"plots/scalept_{ieta}.{imgtype}")    
+            plt.savefig(f"{plotdir}/scalept_{ieta}_{ielem}.{imgtype}")    
             #p1 = plt.plot(1./ksfine, scaleplusalt)
             #plt.legend( (p1[0],),('$M/k + 0.5\sigma^2$',))
             #plt.savefig(f"plots/scalerescompare.pdf")    
@@ -445,4 +460,4 @@ for ieta in range(etasc.shape[0]):
 
 
 
-plt.show()
+#plt.show()

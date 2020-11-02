@@ -3,7 +3,27 @@ from sympy.matrices import Matrix, ones, zeros, hadamard_product, BlockMatrix, b
 from sympy import init_printing
 init_printing() 
 
-N = 5
+#N = 5
+
+R = [4.1437478, 7.0870599, 7.5626616, 11.746180, 28.888109, 28.979446, 33.737079, 33.829258, 35.048137, 35.139869, 39.898342, 39.989845,
+52.630050, 57.872253, 61.893707, 62.010196, 67.135734, 67.253265,
+73.687667, 73.806480, 74.882408, 81.997367, 89.673179, 96.831947]
+
+
+RPhiErr = [0.0005205, 0.0006515, 0.0004069, 0.0047973, 0.0055708, 0.0055551,
+0.0054941, 0.0043147, 0.392515, 0.0041837, 0.429451, 0.0042747,
+0.465744, 0.0038275, 0.0038912, 0.003795, 0.233091, 0.0038282,
+0.265093, 0.0029776, 0.270927, 0.0030374, 0.31596, 0.0023857]
+
+
+matval = [ 4.753e-6 , 4.06e-6 , 4.06e-6 , 0.00001872, 0.000028, 0.000028,
+0.00001061, 0.00001061, 5.467e-6, 5.467e-6 , 8.882e-6 , 8.882e-6 ,
+0.00001315, 9.93e-6, 4.358e-6 , 4.358e-6 , 4.691e-6, 4.691e-6,
+4.88e-6 , 4.88e-6 , 9.76e-6 , 8.704e-6 , 8.388e-6, 8.37e-6]
+
+N = len(R)
+
+
 
 sigma = sympy.symbols("sigma")
 a = sympy.symbols("a")
@@ -21,11 +41,12 @@ k = sympy.symbols("k")
 
 #assert(0)
 
-def xinit(i,j):
-    return i*L/(N-1)
-
 #def xinit(i,j):
+    #return i*L/(N-1)
+
+def xinit(i,j):
     #return (i+1)*L/N
+    return R[i]
     
 #def xinit(i,j):
     #return L - i*L/N
@@ -52,38 +73,18 @@ k_g = sympy.symbols("k_g")
 #M1 = sympy.symbols("M1")
 #M2 = sympy.symbols("M2")
 
-xbs = L/100
-
-alpha = sympy.symbols("alpha")
-phi = sympy.symbols("phi")
-
-def ytrueinit(i,j):
+def yinit(i,j):
     
-    #res = k*x[i,0]*(x[i,0]-x[N-1,0])
-    
-    #res = -k*xbs**2 + k*x[i,0]**2
-    res =  phi*x[i,0] + k*x[i,0]**2
-    
-    #res += dA2*k*x[i,0]**2
-    
-    #if i==1:
-        #res += dA*k
+    res = k*x[i,0]*(x[i,0]-x[N-1,0])
     
     if i==3:
-        res += dA*k + M - epsilon*k**2
-    
-    #if i>2:
         #res += dA*k + M - epsilon*k**2
-        #res += dA*k
-        #res += epsilon*k**2*(x[i,0]-x[2,0])**2
-        #res += M
-    #else:
-        #res += -dA*k/(N-1)
-    #res += -M/N
+        res += dA*k
+        res += M
         #res += epsilon*k**2 + dA*k
         #res += epsilon*k**2
-    #if i==4:
-        #res += dA2*k
+    if i==4:
+        res += dA2*k
         #res += epsilon*k**2/(1.+epsilon*k)
         
     #if i==4:
@@ -91,19 +92,16 @@ def ytrueinit(i,j):
         
     return res
     
-#def dytrueinit(i,j):
-    
-    
 
-ymeas = Matrix(N,1,ytrueinit)
+ymeas = Matrix(N,1,yinit)
 
 def Vinit(i,j):
     res = 0
     if i==j:
-        res += sigma**2
+        res += RPhiErr[i]**2
         
     for l in range(min(i,j)):
-        res += (x[i,0] - x[l,0])*(x[j,0] - x[l,0])*a**2*k**2/(N-1)
+        res += (x[i,0] - x[l,0])*(x[j,0] - x[l,0])*matval[l]*k**2
         
     return res
         
@@ -151,7 +149,8 @@ print(V)
 
 
 print("invert")
-Vinv = V.inv(method = "ADJ")
+#Vinv = V.inv(method = "ADJ")
+Vinv = V.inv(method = "LU")
 #Vinv = V.inv()
 print("simplify")
 Vinv = Vinv.cancel()
@@ -178,11 +177,6 @@ varinv = A.transpose()*Vinv*A
 print("simplify")
 varinv = varinv.cancel()
 
-
-det = sympy.factor(varinv.det())
-print("determinant")
-print(det)
-
 print("invert")
 var = varinv.inv(method="ADJ")
 
@@ -205,184 +199,6 @@ scale = xt
 #scale = xt[0]
 scale = sympy.simplify(scale)
 
-
-yres = ymeas - A*scale
-yres = sympy.simplify(yres)
-print("yres:")
-print(yres)
-
-#bsres = scale[0] + scale[1]*xbs + scale[2]*xbs**2
-#bsres = sympy.simplify(bsres)
-#print("bsres")
-#print(bsres)
-
-dypre = sympy.eye(N) - A*xtpre
-#print(dypre)
-dypre = sympy.simplify(dypre)
-#print(dypre)
-
-#singular = dypre.transpose().nullspace()
-#singular = dypre.transpose()
-#singular = dypre.singular_values()
-
-#print("singular")
-#print(singular)
-
-dy = dypre.pinv_solve(yres,arbitrary_matrix=zeros(N,1))
-#dy = dypre.pinv()*yres
-#dy = yres*dypre.pinv()
-dy = sympy.simplify(dy)
-print("dy")
-print(dy)
-
-
-#dyavg = 0
-#dyxavg = 0
-
-xbar = 0
-x2bar = 0
-x3bar = 0
-
-for i in range(N):
-    #dyavg += dy[i,0]/5
-    #dyxavg += dy[i,0]*x[i,0]/5
-    xbar += x[i,0]/N
-    x2bar += x[i,0]**2/N
-    x3bar += x[i,0]**3/N
-
-exp0 = 0
-exp1 = 0
-exp2 = 0
-for i in range(N):
-    exp0 += dy[i,0]/N
-    exp1 += dy[i,0]*x[i,0]/N
-    exp2 += dy[i,0]/x[i,0]/N
-    #exp1 += (dy[i,0]*x[i,0]-dy[i,0])/N
-
-exp0 = exp0.simplify()
-exp1 = exp1.simplify()
-
-print("exp0")
-print(exp0)
-print("exp1")
-print(exp1)
-print("exp2")
-print(exp2)
-
-#adjust residuals subject to constraints
-#1) zero average dxy wrt beamspot
-#2) no global translation
-#3) no global rotation
-#a0 = -dy[0]
-#a2 = (dy[0]*(xbar**2-x2bar) - exp1*xbar)/(x3bar*xbar-x2bar**2)
-#a2 = (dy[0]*xbar**2 -dy[0]*x2bar - exp1*xbar + exp0*x2bar)/(x3bar*xbar - x2bar**2)
-#a1 = (dy[0] - exp0 - a2*x2bar)/xbar
-
-#a0 = -dy[0]
-#a1 = (-exp0*x3bar - a0*x3bar + exp1*x2bar + a0*xbar*x2bar)/(xbar*x3bar - x2bar**2)
-#a2 = (-exp1 - a0*xbar - a1*x2bar)/x3bar
- 
-#a0 = -dy[0]
-##a1 = (exp1*x2bar + a0*xbar*x2bar - exp0*x3bar - a0*x3bar)/(xbar*x2bar - x2bar**2)
-#a2 = (-exp0 - a0 - a1*xbar)/(x2bar)
- 
- 
-#a0 = symby.symbols("a0")
-
-#a0 = -dy[0]
-#a0 = a0.subs(k,0)
-a0 = sympy.symbols("a0")
-a1 = sympy.symbols("a1")
-a2 = sympy.symbols("a2")
-
-#c0 = exp0 + a0
-
-c0 = 0
-c1 = 0
-c2 = 0
-
-for i in range(N):
-    dyalti = dy[i,0] + a0 + a1*x[i,0] + a2*x[i,0]**2
-    
-    if i==0:
-        c0 = dyalti
-    #elif i==1:
-        #c1 = dyalti
-    #elif i==2:
-        #c2 = dyalti
-    
-    c1 += dyalti
-    #if i>0:
-        #c1 += dyalti/x[i,0]**2
-        #c1 += dyalti/x[i,0]
-    c2 += dyalti*x[i,0]
-    #c2 += dyalti*x[i,0]**2
-    #c2 += dyalti/x[i,0]
-    #c1 += exp0 + a0 + a1*xbar + a1*x2bar
-    #c2 += exp1 + a0*xbar + a1*x2bar + a2*x3bar
-
-c1 = c1.subs(k,0)
-c2 = c2.subs(k,0)
-
-#c1 += -M
-#c2 += -M*x[4,0]
-
-#a0s = a0
-#sres = sympy.solve((c1,c2),(a1,a2))
-sres = sympy.solve((c0,c1,c2),(a0,a1,a2))
-
-print("sres")
-print(sres)
-
-a0 = sres[a0]
-a1 = sres[a1]
-a2 = sres[a2]
-
-#a0 = -dy[0]
-#a1 = 0
-#a2 = 0
-
-
-
-#print("a1")
-#print(a1)
-#print("a2")
-#print(a2)
-
-def dyaltinit(i,j):
-    return dy[i,0] + a0 + a1*x[i,0] + a2*x[i,0]**2
-    #return dy[i,0] - dy[0,0]
-    #return dy[i,0] - dyavg - dyxavg
-    
-
-dyalt = Matrix(N,1,dyaltinit)
-
-print("dyalt")
-print(dyalt)
-
-
-exp0alt = 0
-exp1alt = 0
-exp2alt = 0
-for i in range(N):
-    exp0alt += dyalt[i,0]/N
-    exp1alt += dyalt[i,0]*x[i,0]/N
-    if i>0:
-        exp2alt += dyalt[i,0]/x[i,0]/N
-
-exp0alt = exp0alt.simplify()
-exp1alt = exp1alt.simplify()
-exp2alt = exp2alt.simplify()
-    
-
-
-print("exp0alt")
-print(exp0alt)
-print("exp1alt")
-print(exp1alt)
-print("exp2alt")
-print(exp2alt)
-
 print("scale:")
 print(scale)
 
@@ -401,28 +217,11 @@ scale = scale.subs(M,1)
 #scale = scale.subs(M,1e-6)
 scale = scale.subs(dA,1)
 scale = scale.subs(dA2,1)
-scale = scale.subs(phi,0)
 
 
 print("partial fraction decomposition:")
 scale = sympy.apart(scale)
 print(scale)
-
-scalealt = xtpre*(ymeas-dy)
-scalealt = sympy.simplify(scalealt)
-
-print("scalealt:")
-print(scalealt)
-
-#yalt2 = ymeas-dy
-#for i in range(N):
-    #yalt2[i] += -scalealt[0]
-
-#scalealt2 = xtpre*(ymeas-dy-scalealt[0])
-scalealt2 = xtpre*(ymeas-dyalt)
-scalealt2 = sympy.simplify(scalealt2)
-print("scalealt2")
-print(scalealt2)
 
 print("simplify")
 #sigmak2 = var[0,0]
