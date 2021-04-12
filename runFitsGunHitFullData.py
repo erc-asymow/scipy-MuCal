@@ -101,11 +101,16 @@ jsonhelper = lumitools.make_jsonhelper("data/Cert_271036-284044_13TeV_Legacy2016
 #filename = "/data/shared/muoncal/MuonGunUL2016_v41_Rec_noquality/210405_115619/0000/globalcor_*.root"
 #filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v41_Rec_noquality/210405_115619/0000/globalcor_0_1.root"
 
-#filename = "/data/shared/muoncal/MuonGunUL2016_v42_RecDataMuIsoH_noquality/210405_185116/0000/globalcor_*.root"
 #filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v42_RecDataMuIsoH_noquality/210405_185116/0000/globalcor_0_1.root"
 
-filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v36plus2_Rec_noquality/210405_185722/0000/globalcor_0_1.root"
-filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v36plus2_Rec_noquality/210405_185722/0000/globalcor_*.root"
+
+#filenamemu = "/data/shared/muoncal/MuonGunUL2016_v42_RecDataMuIsoH_noquality/210405_185116/0000/globalcor_*.root"
+#filenamejpsi = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/Charmonium/MuonGunUL2016_v42_RecDataJPsiH_noquality/210407_153438/0000/globalcor_*.root"
+
+filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/SingleMuon/MuonGunUL2016_v36plus2_RecDataMuIsoH_noquality/210405_185619/0000/globalcor_0_1.root"
+filenamemu = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/SingleMuon/MuonGunUL2016_v36plus2_RecDataMuIsoH_noquality/210405_185619/0000/globalcor_*.root"
+filenamejpsi = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/Charmonium/MuonGunUL2016_v36plus2_RecDataJPsiH_noquality/210407_191929/0000/globalcor_*.root"
+
 
 #filename = "/data/shared/muoncal/MuonGunUL2016_v30_Gen210206_025446/0000/globalcor_*.root"
 #filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v30_Gen210206_025446/0000/globalcor_0_1.root"
@@ -330,48 +335,8 @@ def fitcorR(dxraws, dxfit, dyfit, rx):
     #return dxraws - rx[:,0]*dxfit - rx[:,1]*dyfit
     return dxraws - rx[:,0]*dxfit - rx[:,1]*dyfit
 
-treename = "tree"
-d = ROOT.ROOT.RDataFrame(treename,filename)
-
-d = d.Filter(jsonhelper, ["run", "lumi"], "jsonfilter")
 
 
-#d = d.Define("dx", "Numba::fitcorR(dxrecgen,dlocalx,dlocaly,rx)")
-
-#d = d.Define("dx", "dxrecgen - dlocalx")
-
-d = d.Define("dx", "dxrecgen - deigx")
-
-
-
-
-#d = d.Define("dx", "dxrecgen")
-#d = d.Define("dx", "dyrecgen")
-#d = d.Define("dx", "dxsimgen")
-#d = d.Define("dx", "dysimgen")
-#d = d.Define("dx", "dxrecsim")
-#d = d.Define("dx", "dyrecsim")
-
-#cut = "genPt > 5.5 && genPt < 150."
-#d = d.Filter(cut)
-
-d = d.Define("refPt", "std::abs(1./refParms[0])*std::sin(M_PI_2 - refParms[1])")
-d = d.Filter("refPt > 5.5")
-#d = d.Filter("refPt > 26.")
-
-d = d.Define("refCharge","std::copysign(1.0f, refParms[0])")
-
-
-
-#d = d.Filter("genEta>-1.7 && genEta<-1.4")
-#d = d.Filter("genEta>-2.4 && genEta<-2.3")
-
-#d = d.Filter("hitidxv[0]==9")
-#d = d.Filter("hitidxv[0]==24")
-
-d = d.Define("hitidxr", "Numba::layer(hitidxv)")
-#d = d.Define("kgen", "(1./genPt)*dxsimgen/dxsimgen")
-d = d.Define("kgen", "(1./refPt)*dxrecgen/dxrecgen")
 
 #nEtaBins = nglobal
 #nkbins = 50
@@ -449,29 +414,82 @@ qrlim = 0.02
 #qrlim = 0.005
 qrs = onp.linspace(-qrlim,qrlim,nqrbins+1,dtype=np.float64)
 
-#dminus = d.Filter("genCharge<0")
-#dplus = d.Filter("genCharge>0")
 
-dminus = d.Filter("refCharge<0")
-dplus = d.Filter("refCharge>0")
+def getarr(filename, ptmin):
 
-globs = onp.arange(nglobal+1)-0.5
+    treename = "tree"
+    d = ROOT.ROOT.RDataFrame(treename,filename)
 
-hdxsimgenminus = dminus.Histo3D(("hdxsimgenminus", "", nglobal, globs, nkbins, ks, nqrbins, qrs),"hitidxr","kgen", "dx")
-hdxsimgenplus = dplus.Histo3D(("hdxsimgenplus", "", nglobal, globs, nkbins, ks, nqrbins, qrs),"hitidxr","kgen", "dx")
+    d = d.Filter(jsonhelper, ["run", "lumi"], "jsonfilter")
 
-#print(hdxsimgen)
 
-print("starting rdf loop")
+    #d = d.Define("dx", "Numba::fitcorR(dxrecgen,dlocalx,dlocaly,rx)")
 
-dxsimgenminus = hist2array(hdxsimgenminus.GetValue())
-dxsimgenplus = hist2array(hdxsimgenplus.GetValue())
+    #d = d.Define("dx", "dxrecgen - dlocalx")
 
-print("done converting hists")
+    d = d.Define("dx", "dxrecgen - deigx")
 
-dxsimgen = onp.stack([dxsimgenminus, dxsimgenplus], axis=1)
+
+
+
+    #d = d.Define("dx", "dxrecgen")
+    #d = d.Define("dx", "dyrecgen")
+    #d = d.Define("dx", "dxsimgen")
+    #d = d.Define("dx", "dysimgen")
+    #d = d.Define("dx", "dxrecsim")
+    #d = d.Define("dx", "dyrecsim")
+
+    #cut = "genPt > 5.5 && genPt < 150."
+    #d = d.Filter(cut)
+
+    d = d.Define("refPt", "std::abs(1./refParms[0])*std::sin(M_PI_2 - refParms[1])")
+    #d = d.Filter("refPt > 5.5")
+    d = d.Filter(f"refPt > {ptmin}")
+
+    d = d.Define("refCharge","std::copysign(1.0f, refParms[0])")
+
+
+
+    #d = d.Filter("genEta>-1.7 && genEta<-1.4")
+    #d = d.Filter("genEta>-2.4 && genEta<-2.3")
+
+    #d = d.Filter("hitidxv[0]==9")
+    #d = d.Filter("hitidxv[0]==24")
+
+    d = d.Define("hitidxr", "Numba::layer(hitidxv)")
+    #d = d.Define("kgen", "(1./genPt)*dxsimgen/dxsimgen")
+    d = d.Define("kgen", "(1./refPt)*dxrecgen/dxrecgen")
+
+    #dminus = d.Filter("genCharge<0")
+    #dplus = d.Filter("genCharge>0")
+
+    dminus = d.Filter("refCharge<0")
+    dplus = d.Filter("refCharge>0")
+
+    globs = onp.arange(nglobal+1)-0.5
+
+    hdxsimgenminus = dminus.Histo3D(("hdxsimgenminus", "", nglobal, globs, nkbins, ks, nqrbins, qrs),"hitidxr","kgen", "dx")
+    hdxsimgenplus = dplus.Histo3D(("hdxsimgenplus", "", nglobal, globs, nkbins, ks, nqrbins, qrs),"hitidxr","kgen", "dx")
+
+    #print(hdxsimgen)
+
+    print("starting rdf loop")
+
+    dxsimgenminus = hist2array(hdxsimgenminus.GetValue())
+    dxsimgenplus = hist2array(hdxsimgenplus.GetValue())
+
+    print("done converting hists")
+
+    dxsimgen = onp.stack([dxsimgenminus, dxsimgenplus], axis=1)
+    
+    return dxsimgen
 
 #dxsimgen = onp.reshape(dxsimgen, (nglobal, 2, 50, 10000))
+
+#dxsimgenmu = getarr(filenamemu, 26.)
+#dxsimgenjpsi = getarr(filenamejpsi, 5.5)
+
+dxsimgen = getarr(filenamemu, 26.) + getarr(filenamejpsi, 5.5)
 
 print(dxsimgen.shape)
 

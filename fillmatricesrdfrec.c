@@ -4,15 +4,18 @@
 #include <ROOT/RDataFrame.hxx>
 #include "TFile.h"
 #include <ROOT/TTreeProcessorMT.hxx>
+#include <stdlib.h>  
 
 class GradHelper : public ROOT::Detail::RDF::RActionImpl<GradHelper> {
 
 public:
   using Result_t = std::vector<double>;
   
-  GradHelper(unsigned int nparms) : nparms_(nparms), grad_(new Result_t()) {}   
-  GradHelper(GradHelper && other) : nparms_(other.nparms_), grad_(other.grad_) {}
-  GradHelper(const GradHelper &other) : nparms_(other.nparms_), grad_(other.grad_) {}
+  GradHelper(unsigned int nparms) : nparms_(nparms), grad_(std::make_shared<Result_t>()) {}  
+//   GradHelper(unsigned int nparms, std::shared_ptr<Result_t> grad) : nparms_(nparms), grad_(grad) {}
+  GradHelper(GradHelper && other) = default;
+//   GradHelper(GradHelper && other) : nparms_(other.nparms_), grad_(other.grad_) {}
+//   GradHelper(const GradHelper &other) : nparms_(other.nparms_), grad_(other.grad_) {}
   
   std::shared_ptr<Result_t> GetResultPtr() const { return grad_; }
 
@@ -33,8 +36,10 @@ public:
     gradtmp_.clear();
     gradtmp_.resize(nslots, std::vector<double>(nparms_, 0.));
     
-    grad_->clear();
-    grad_->resize(nparms_, 0.);    
+    if (grad_->empty()) {
+      grad_->clear();
+      grad_->resize(nparms_, 0.);    
+    }
   }
 
     
@@ -65,9 +70,11 @@ public:
 //   using Result_t = std::vector<double>;
 //   using Data_t = std::vector<std::atomic<double> >;
   
-  HessHelper(unsigned int nparms) : nparms_(nparms), grad_(new Result_t()) {}   
-  HessHelper(HessHelper && other) : nparms_(other.nparms_), grad_(other.grad_) {}
-  HessHelper(const HessHelper &other) : nparms_(other.nparms_), grad_(other.grad_) {}
+  HessHelper(unsigned int nparms) : nparms_(nparms), grad_(std::make_shared<Result_t>()) {}   
+//   HessHelper(unsigned int nparms, std::shared_ptr<Result_t> grad) : nparms_(nparms), grad_(grad) {}
+  HessHelper(HessHelper && other) = default;
+//   HessHelper(HessHelper && other) : nparms_(other.nparms_), grad_(other.grad_) {}
+//   HessHelper(const HessHelper &other) : nparms_(other.nparms_), grad_(other.grad_) {}
   
   std::shared_ptr<Result_t> GetResultPtr() const { return grad_; }
 //   std::shared_ptr<Result_t> GetResultPtr() const { 
@@ -123,15 +130,17 @@ public:
     
     unsigned long long nsym = nparms_*(nparms_+1)/2;
     
-    std::cout<< "allocating huge atomic double vector of size " << nsym << std::endl;
+    if (grad_->empty()) {
+      std::cout<< "allocating huge atomic double vector of size " << nsym << std::endl;
 
-    std::vector<std::atomic<double> > tmp(nsym);
-    grad_->swap(tmp);
-    std::cout<< "initializing values" << std::endl;
-    for (unsigned long long i=0; i<grad_->size(); ++i) {
-      (*grad_)[i] = 0.;
+      std::vector<std::atomic<double> > tmp(nsym);
+      grad_->swap(tmp);
+      std::cout<< "initializing values" << std::endl;
+      for (unsigned long long i=0; i<grad_->size(); ++i) {
+        (*grad_)[i] = 0.;
+      }
+      std::cout<< "done huge vector" << std::endl;
     }
-    std::cout<< "done huge vector" << std::endl;
     timestamp_ = std::chrono::steady_clock::now();
   }
 
@@ -180,9 +189,9 @@ float maxelement(ROOT::VecOps::RVec<float> const& vec) {
       maxval = absval;
     }
   }
-  if (maxval > 1e5) {
-    std::cout << "maxval = " << maxval << std::endl;
-  }
+//   if (maxval > 1e5) {
+//     std::cout << "maxval = " << maxval << std::endl;
+//   }
   return maxval;
 }
 
@@ -201,15 +210,20 @@ float maxelementhess(ROOT::VecOps::RVec<float> const& vec) {
 }
 
 bool valid(ROOT::VecOps::RVec<float> const& vec) {
-  for (unsigned long long i=0; i<vec.size(); ++i) {
-    if (std::isnan(vec[i]) || std::isinf(vec[i])) {
+//   for (unsigned long long i=0; i<vec.size(); ++i) {
+//     if (std::isnan(vec[i]) || std::isinf(vec[i])) {
+//       return false;
+//     }
+//   }
+  for (auto val : vec) {
+    if (std::isnan(val) || std::isinf(val)) {
       return false;
     }
   }
   return true;
 }
 
-void fillmatricesrdf() {
+void fillmatricesrdfrec() {
     
 //   std::atomic<double> t;
 //   std::cout<< "is lock free: " << t.is_lock_free() << std::endl;
@@ -217,6 +231,7 @@ void fillmatricesrdf() {
   
 //   std::cout << ROOT::GetImplicitMTPoolSize() << std::endl;
 
+  setenv("XRD_PARALLELEVTLOOP", "16", true);
   
   ROOT::EnableImplicitMT();
   ROOT::TTreeProcessorMT::SetMaxTasksPerFilePerWorker(1);
@@ -243,8 +258,13 @@ void fillmatricesrdf() {
 //   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v38_Gen_quality/210403_232146/0000/globalcor_0_1.root";
 //   std::string filename = "/data/shared/muoncal/MuonGunUL2016_v38_Gen_quality/210403_232146/0000/globalcor_*.root";
   
-  const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v39_Gen_quality/210403_232626/0000/globalcor_0_1.root";
-  const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v39_Gen_quality/210403_232626/0000/globalcor_*.root";
+  const char* filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v45_Rec_quality_bs_v2/210411_194557/0000/globalcor_0_10.root";
+//   const std::string filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v45_Rec_quality_bs_v2/210411_194557/0000/globalcor_*.root";
+  const std::string filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v45_Rec_quality_bs_v2/210411_194557/0000/globalcor_0_10.root";
+  
+//   const std::string filenamejpsi = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/JPsiToMuMuGun_Pt5To30-pythia8-photos/MuonGunUL2016_v45_RecJpsiPhotos_quality_constraint_v2/210411_195122/0000/globalcor_*.root ";
+//   const std::string filenamejpsi = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/JPsiToMuMuGun_Pt5To30-pythia8-photos/MuonGunUL2016_v45_RecJpsiPhotos_quality_constraint_v2/210411_195122/0000/globalcor_0_10.root ";
+  const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v45_RecJpsiPhotos_quality_constraint_v2/210411_195122/0000/globalcor_*.root";
 
 //   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v30_Gen210206_025446/0000/globalcor_0_1.root";
   
@@ -288,7 +308,8 @@ void fillmatricesrdf() {
 //   auto d2 = d.Filter("genPt > 5.5");
 //   auto d2 = d.Filter("genPt > 5.5 && nValidHits > 9 && nValidPixelHits > 0 && trackCharge*trackPt/genPt/genCharge > 0.3");
   
-  auto d2 = d.Filter("genPt > 5.5 && nValidHits > 9 && nValidPixelHits > 0");
+  auto d2a = d.Define("refPt", "std::abs(1./refParms[0])*std::sin(M_PI_2 - refParms[1])");
+  auto d2 = d2a.Filter("refPt > 5.5 && nValidHits > 9 && nValidPixelHits > 0");
 //   auto d2 = d.Filter("genPt > 5.5 && nValidHitsFinal > 9 && nValidPixelHitsFinal > 0");
 //   auto d2 = d.Filter("genPt > 5.5 && nValidHits > 9 && nValidPixelHits > 0");
 //   auto d2 = d.Filter("genPt > 5.5 && nValidHits > 9 && nValidPixelHits > 0 && genEta>-2.4 && genEta<-2.3");
@@ -298,18 +319,57 @@ void fillmatricesrdf() {
 //   auto d3 = d.Define("gradmax", "maxelement(gradv)");
 //   auto d3 = d2.Filter("maxelement(gradv) < 1e5 && maxelementhess(hesspackedv)<1e8");
 //   auto d3 = d2.Filter("maxelement(gradv) < 1e5");
-  auto d3 = d2.Filter("maxelement(gradv) < 1e5");
+//   auto d3 = d2.Filter("maxelement(gradv) < 1e5");
+  auto d3 = d2.Filter("maxelement(gradv) < 1e5 && valid(gradv) && valid(hesspackedv)");
 //   auto d3 = d2.Filter("maxelement(gradv) < 1e5 && valid(gradv) && valid(hesspackedv) && maxelementhess(hesspackedv)<1e8");
   
   
-  auto grad = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(gradhelper), {"gradv", "globalidxv"});
-  auto hess = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(hesshelper), {"hesspackedv", "globalidxv"});
+  auto grad0 = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(gradhelper), {"gradv", "globalidxv"});
+  auto hess0 = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(hesshelper), {"hesspackedv", "globalidxv"});
   
   auto gradcounts = d3.Histo1D({"gradcounts", "", int(nparms), -0.5, double(nparms)-0.5}, "globalidxv");
 
+  std::cout << (*grad0)[0] << std::endl;
+  std::cout << (*hess0)[0] << std::endl;
+
+  std::cout << "starting second rdf" << std::endl;
+
+  
+  ROOT::RDataFrame dj(treename, filenamejpsi);
+  auto dj2a = dj.Filter("std::abs(Jpsi_mass - 3.09692f) < 0.1");
+  auto dj2b = dj2a.Filter("valid(gradv) && valid(hesspackedv)");
+  auto dj2 = dj2b.Filter("Muplus_pt > 5.5 && Muminus_pt > 5.5");
+  auto dj3 = dj2.Filter("maxelement(gradv) < 5e5");
+  
+//   std::shared_ptr<GradHelper::Result_t> gradval(grad0.GetPtr());
+//   std::shared_ptr<HessHelper::Result_t> hessval(hess0.GetPtr());
+  
+//   auto gradval = std::make_shared<GradHelper::Result_t>();
+//   auto hessval = std::make_shared<HessHelper::Result_t>();
+  
+//   gradval->swap(*grad0);
+//   hessval->swap(*hess0);
+  
+//   GradHelper gradhelperj(nparms, gradval);
+//   HessHelper hesshelperj(nparms, hessval);
+  
+  GradHelper gradhelperj(nparms);
+  HessHelper hesshelperj(nparms);
+  
+  gradhelperj.GetResultPtr()->swap(*grad0);
+  hesshelperj.GetResultPtr()->swap(*hess0);
+  
+//   GradHelper gradhelperj(nparms, std::shared_ptr<GradHelper::Result_t>(grad0.GetPtr()));
+//   HessHelper hesshelperj(nparms, std::shared_ptr<HessHelper::Result_t>(hess0.GetPtr()));
+  
+  auto grad = dj3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(gradhelperj), {"gradv", "globalidxv"});
+  auto hess = dj3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(hesshelperj), {"hesspackedv", "globalidxv"});
+  
   std::cout << (*grad)[0] << std::endl;
   std::cout << (*hess)[0] << std::endl;
-
+  
+  std::cout << "done second rdf" << std::endl;
+  
   TFile *fgrads = new TFile("combinedgrads.root", "RECREATE");
   TTree *tree = new TTree("tree", "");
   

@@ -1381,7 +1381,7 @@ def flatten_hessian(x, grad_shapes, val_shape=()):
     x_flat, _ = jax.tree_util.tree_flatten(x)
     
     val_dim = len(val_shape)
-    grad_shapes_flat = [ (np.prod(shape[val_dim:]),) for shape in grad_shapes]
+    grad_shapes_flat = [ (np.prod(np.array(shape[val_dim:])),) for shape in grad_shapes]
     
     x_square = [x_flat[i*ngrad:(i+1)*ngrad] for i in range(ngrad)]
     

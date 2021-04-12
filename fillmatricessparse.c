@@ -208,7 +208,10 @@ void fillmatricessparse() {
 //   const char* filenameinfo = "/data/bendavid/cmsswdevslc6/CMSSW_10_2_23/work/trackTreeGradsParmInfo.root";
 //   const char* filenameinfo = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorGen_v12/200823_134027/0000/globalcorgen_1.root";
 //   const char* filenameinfo = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorGenFwd_v12/200824_105616/0000/globalcorgen_103.root";
-  const char* filenameinfo = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgeantint4genhelixprecrefb//globalcor_0.root";
+//   const char* filenameinfo = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016APV_v1_Gen/201116_001917/0000/globalcor_0_1.root";
+  
+  const char* filenameinfo = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v5_Gen/201122_023134/0000/globalcor_0_1.root";
+  
 //   const char* filenameinfo = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_v28/200829_122617/0000/globalcor_1.root";
 
   TFile *finfo = TFile::Open(filenameinfo);
@@ -235,8 +238,12 @@ void fillmatricessparse() {
 //   const std::string filename = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorGen_v12/200823_134027/0000/globalcorgen_*.root";
 //   const std::string filename = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorGen_GBLchisq/200908_222942/0000/globalcorgen_*.root";
   
-    const std::string filename = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgeantint4genhelixprecrefb//globalcor_*.root";
+//     const std::string filename = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016APV_v1_Gen/201116_001917/0000/globalcor_*.root";
 
+      
+//   const std::string filename = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v2_Gen/201118_072526/0000/globalcor_*.root";
+  
+  const std::string filename = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v5_Gen/201122_023134/0000/globalcor_*.root";
   
 //   const std::string filename = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_v28/200829_122617/0000/globalcor_*.root";
   

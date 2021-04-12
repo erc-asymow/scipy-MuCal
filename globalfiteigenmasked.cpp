@@ -16,8 +16,8 @@ public:
   using Result_t = std::pair<VectorXd, MatrixXd>;
   
   GradHelper(unsigned int nparms) : nparms_(nparms), grad_(new Result_t()) {}   
-  GradHelper(GradHelper && other) : nparms_(other.nparms_), grad_(other.grad_) {}
-  GradHelper(const GradHelper &other) : nparms_(other.nparms_), grad_(other.grad_) {}
+//   GradHelper(GradHelper && other) : nparms_(other.nparms_), grad_(other.grad_) {}
+//   GradHelper(const GradHelper &other) : nparms_(other.nparms_), grad_(other.grad_) {}
   
   std::shared_ptr<Result_t> GetResultPtr() const { return grad_; }
 
@@ -59,19 +59,7 @@ int main() {
 //   TFile *f = TFile::Open("combinedgrads.root");
 //   TTree *tree = (TTree*)f->Get("tree");
   
-//   const char* filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v23_ActualGen/201201_232503/0000/globalcor_0_1.root";
-  
-//   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v30_Gen210206_025446/0000/globalcor_0_1.root";
-//   const char* filenameinfo = "/data/shared/muoncal/resultsqualitycompare/MuonGUNUL2016Fwd_v4_Gen_quality/210212_220639/0000/globalcor_0_1.root";
-  
-//   const char* filenameinfo = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v32_Rec/210214_182643/0000/globalcor_0_1.root";
-//   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v33_Gen_idealquality/210307_155804/0000/globalcor_0_1.root";
-//     const char* filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v37_Gen_quality/210311_001434/0000/globalcor_0_1.root";
-    const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v39_Gen_quality/210403_232626/0000/globalcor_0_1.root";
-//   const char* filenameinfo = "/data/shared/muoncal/MuonGUNUL2016Fwd_v33_Gen_idealquality/210228_002318/0000/globalcor_0_1.root";
-
-
-
+  const char* filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v21_Gen/201130_004723/0000/globalcor_0_1.root";
 
 //   const char* filenameinfo = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorGen_v29/200901_214453/0000/globalcorgen_100.root";
 //   const char* filenameinfo = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_v28/200829_122617/0000/globalcor_1.root";
@@ -87,6 +75,11 @@ int main() {
   std::vector<int> parmtypes(nparms, -1);
   std::vector<int> subdets(nparms, -1);
   
+  std::vector<unsigned int> idxmapv;
+  idxmapv.reserve(nparms);
+  
+  unsigned int nsel = 0;
+  
   unsigned int iidx;
   int parmtype;
   int subdet;
@@ -97,6 +90,9 @@ int main() {
     runtree->GetEntry(i);
     parmtypes[iidx] = parmtype;
     subdets[iidx] = subdet;
+    
+    idxmapv.push_back(nsel);
+    nsel++;
   }
   
   finfo->Close();
@@ -106,8 +102,6 @@ int main() {
   GradHelper gradhelper(nparms);
   
   const std::string filename = "combinedgrads.root";
-//   const std::string filename = "results_V33_01p567quality/combinedgrads.root";
-  
 //   const std::string filename = "combinedgradsrec.root";
   ROOT::RDataFrame dgrad("tree", filename);
   
@@ -187,83 +181,34 @@ int main() {
     
     if (parmtype < 2) {
       // translation
-//       if (parmtype == 1 && subdet>1 && subdet<4) {
-//         hess.row(i) *= 0.;
-//         hess.col(i) *= 0.;
-//         grad[i] = 0.; 
-//       }
-//       if (parmtype == 1 && subdet>1) {
-//         hess.row(i) *= 0.;
-//         hess.col(i) *= 0.;
-//         grad[i] = 0.; 
-//       }
       hess(i,i) += 2.*1./pow(1e-1, 2);
     }
     else if (parmtype == 2) {
-      //linearization is a bad approximation?
-      
-//       if (subdet>1) {
-//         hess.row(i) *= 0.;
-//         hess.col(i) *= 0.;
-//         grad[i] = 0.;        
-//       }
-//       if (subdet > 0) {
-//       if (true) {
-//         hess.row(i) *= 0.;
-//         hess.col(i) *= 0.;
-//         grad[i] = 0.;
-//       }
-      hess(i,i) += 2.*1./pow(1e-1, 2);
+      hess(i,i) += 2.*1./pow(2., 2);
     }
-    else if (parmtype < 5) {
-      // rotations out of plane
-      // linearization is a bad approximation?
-      // 0.01 radians
-//       if (subdet>1) {
-//         hess.row(i) *= 0.;
-//         hess.col(i) *= 0.;
-//         grad[i] = 0.;        
-//       }
-//       if (subdet > 0) {
-//       if (true) {
-//         hess.row(i) *= 0.;
-//         hess.col(i) *= 0.;
-//         grad[i] = 0.;
-//       }
-      hess(i,i) += 2.*1./pow(1e-2, 2);
-    }    
     else if (parmtype < 6) {
       // rotation
       // 0.01 radians
-//       if (subdet > 1) {
-//       if (true) {
-//         hess.row(i) *= 0.;
-//         hess.col(i) *= 0.;
-//         grad[i] = 0.;
-//       }
       hess(i,i) += 2.*1./pow(1e-2, 2);
     }
     else if (parmtype==6) {
       // b-field
-//       hess.row(i) *= 0.;
-//       hess.col(i) *= 0.;
-//       grad[i] = 0.;
-      
+      hess.row(i) *= 0.;
+      hess.col(i) *= 0.;
+      grad[i] = 0.;
       hess(i,i) += 2.*1./pow(0.2, 2);
     }
     else if (parmtype==7) {
       // material
-//       hess.row(i) *= 0.;
-//       hess.col(i) *= 0.;
-//       grad[i] = 0.;
+      hess.row(i) *= 0.;
+      hess.col(i) *= 0.;
+      grad[i] = 0.;
       hess(i,i) += 2.*1./pow(1e-4, 2);
     }
     
     
     
   }
-  
-
   
 //   std::cout << "convert to sparse" << std::endl;
 //   SparseMatrix<double> sparsehess = hess.sparseView();
@@ -312,7 +257,7 @@ int main() {
   idxmaptree->Branch("idx",&idx);
   for (unsigned int i=0; i<nparms; ++i) {
     iidx = i;
-    idx = i;
+    idx = idxmapv[i];
     idxmaptree->Fill();
   }
   

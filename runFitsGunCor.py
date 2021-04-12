@@ -87,7 +87,7 @@ def makeData(inputFile,ptmin):
     d = RDF(treename,inputFile)
     
     cut = f"genPt>{ptmin} && fabs(genEta)<2.4"
-    cut += " && genEta<-2.3"
+    #cut += " && genEta<-2.3"
     
     #cut = f"mcpt{idx} > {ptmin} && fabs(eta{idx})<2.4"
     #cut += f" && gen_phi>=0. && gen_phi<0.4"
@@ -102,8 +102,8 @@ def makeData(inputFile,ptmin):
     #d = d.Define("recParms", "trackOrigParms");
     #d = d.Define("recParms", "trackParms");
     #d = d.Define("recParms", "refParms_iter0");
-    #d = d.Define("recParms", "refParms");
-    d = d.Define("recParms", "corParms");
+    d = d.Define("recParms", "refParms");
+    #d = d.Define("recParms", "corParms");
 
     d = d.Define("recPt", "std::abs(1./recParms[0])*std::sin(M_PI_2 - recParms[1])");
     d = d.Define("recCharge", "std::copysign(1.0,recParms[0])");
@@ -800,7 +800,9 @@ dataDir = "./"
 #dataset = onp.concatenate(dsets,axis=0)
 
 #f = f"{dataDir}/muonGuntree.root"
-f = f"{dataDir}/correctedTracks.root"
+#f = f"{dataDir}/correctedTracks.root"
+f = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v1_Rec/201116_001722/0000/globalcor_*.root"
+
 #f = "root://eoscms.cern.ch://store/cmst3/group/wmass/bendavid/muoncal/Muplusandminus_Pt3to150-gun/MuonGunGlobalCorRec_GBLAnalyticPropSimpleMF/200909_163449/0000/*.root"
 #f = "/eos/cms/store/cmst3/group/wmass/bendavid/muoncal/Muplusandminus_Pt3to150-gun/MuonGunGlobalCorRec_GBLAnalyticPropSimpleMF/200909_163449/0000/*.root"
 
@@ -875,8 +877,8 @@ nEtaBins = 48
 ####nEtaBins = 480
 etas = onp.linspace(-2.4,2.4, nEtaBins+1, dtype=np.float64)
 
-nEtaBins = 1
-etas = np.linspace(-2.4,-2.3, nEtaBins+1)
+#nEtaBins = 1
+#etas = np.linspace(-2.4,-2.3, nEtaBins+1)
 #etas = np.linspace(1.0,1.1, nEtaBins+1)
 #etas = np.linspace(-1.5,-1.4, nEtaBins+1)
 #etas = np.linspace(1.1,1.2, nEtaBins+1)
@@ -923,8 +925,10 @@ qs = onp.array([-1.5,0.,1.5], dtype=np.float64)
 #qs = onp.array([0.,1.5], dtype=np.float64)
 
 nqrbins = 10000
-qrs = onp.linspace(0.,2.,nqrbins+1,dtype=np.float64)
-qrsingle = onp.array([0.,2.],dtype=np.float64)
+qrmax = 2.
+#qrmax = 
+qrs = onp.linspace(0.,qrmax,nqrbins+1,dtype=np.float64)
+qrsingle = onp.array([0.,qrmax],dtype=np.float64)
 #qrs = onp.linspace(-np.log(3.),np.log(3.),nqrbins+1,dtype=np.float64)
 #qrsingle = onp.array([-np.log(3.),np.log(3.)],dtype=np.float64)
 
@@ -1355,7 +1359,7 @@ print(cor)
                      #xerrs = xerrs,
                      #covs = covs)
                      
-onp.savez_compressed("unbinnedfitglobalitercor.npz",
+onp.savez_compressed("unbinnedfitglobalitercorscale.npz",
                      xbinned = xbinned,
                      errsbinned = errsbinned,
                      hdsetks = hdsetks,

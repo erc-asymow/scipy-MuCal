@@ -53,19 +53,10 @@ import argparse
 import functools
 import time
 import sys
-from utils import lumitools
-
 from header import CastToRNode
 
-
-ROOT.gInterpreter.ProcessLine(".O3")
 ROOT.ROOT.EnableImplicitMT()
-#ROOT.TTreeProcessorMT.SetMaxTasksPerFilePerWorker(1);
-
-
-lumitools.init_lumitools()
-jsonhelper = lumitools.make_jsonhelper("data/Cert_271036-284044_13TeV_Legacy2016_Collisions16_JSON.txt")
-
+ROOT.TTreeProcessorMT.SetMaxTasksPerFilePerWorker(1);
 
 #filename = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgeantintgenhelixprec/globalcor_*.root"
 #filenameinfo = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgeantintgenhelixprec/globalcor_0.root"
@@ -79,38 +70,8 @@ jsonhelper = lumitools.make_jsonhelper("data/Cert_271036-284044_13TeV_Legacy2016
 #filename = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v1_Gen/201116_000843/0000/globalcor_*.root"
 #filenameinfo = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v1_Gen/201116_000843/0000/globalcor_0_1.root"
 
-#filename = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v29_Gen/201214_201633/0000/globalcor_*.root"
-#filenameinfo = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v29_Gen/201214_201633/0000/globalcor_0_1.root"
-
-
-#filename = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/genidealgrads/globalcor_*.root"
-#filenameinfo = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/genidealgrads/globalcor_0.root"
-
-#filename = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/gennonidealgradsdebugqbins/globalcor_*.root"
-#filenameinfo = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/gennonidealgradsdebugqbins/globalcor_0.root"
-
-#filename = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/genidealgradsdebugnotemplate/globalcor_*.root"
-#filenameinfo = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/genidealgradsdebugnotemplate/globalcor_0.root"
-
-#filename = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/gennonidealgradsdebugnotemplate/globalcor_*.root"
-#filenameinfo = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/gennonidealgradsdebugnotemplate/globalcor_0.root"
-
-#filename = "/data/shared/muoncal/MuonGunUL2016_v41_RecDataMuIsoH_noquality/210405_115340/0000/globalcor_*.root"
-#filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v41_RecDataMuIsoH_noquality/210405_115340/0000/globalcor_0_1.root"
-
-#filename = "/data/shared/muoncal/MuonGunUL2016_v41_Rec_noquality/210405_115619/0000/globalcor_*.root"
-#filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v41_Rec_noquality/210405_115619/0000/globalcor_0_1.root"
-
-#filename = "/data/shared/muoncal/MuonGunUL2016_v42_RecDataMuIsoH_noquality/210405_185116/0000/globalcor_*.root"
-#filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v42_RecDataMuIsoH_noquality/210405_185116/0000/globalcor_0_1.root"
-
-filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v36plus2_Rec_noquality/210405_185722/0000/globalcor_0_1.root"
-filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v36plus2_Rec_noquality/210405_185722/0000/globalcor_*.root"
-
-#filename = "/data/shared/muoncal/MuonGunUL2016_v30_Gen210206_025446/0000/globalcor_*.root"
-#filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v30_Gen210206_025446/0000/globalcor_0_1.root"
-
-
+filename = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v29_Gen/201214_201633/0000/globalcor_*.root"
+filenameinfo = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v29_Gen/201214_201633/0000/globalcor_0_1.root"
 
 
 finfo = ROOT.TFile.Open(filenameinfo)
@@ -316,35 +277,74 @@ idxmap = onp.array(idxmap)
 print(idxmap)
 print(nglobal)
 
+
+fcorname = "results_v27_aligdigi_01p67/correctionResults.root"
+
+fcor = ROOT.TFile.Open(fcorname)
+idxmaptree = fcor.idxmaptree
+coridxmap = []
+for entry in idxmaptree:
+    coridxmap.append(entry.idx)
+
+coridxmap = onp.array(coridxmap)
+
+cortree = fcor.parmtree
+
+xvals = []
+for entry in cortree:
+    xvals.append(entry.x)
+    
+xvals = onp.array(xvals)
+
+xvals = xvals[coridxmap]
+
+yvals = onp.zeros_like(xvals)
+#for parm in runtree:
+    #iidx = parm.iidx
+    #parmtype = parm.parmtype
+    #if parmtype==0:
+        #dyidx = detidmap.get((1, runtree.rawdetid))
+        #if dyidx is not None:
+            #yvals[iidx] = xvals[dyidx]
+
+#print(yvals)
+
+#assert(0)
+
 @ROOT.Numba.Declare(["RVec<unsigned int>"], "RVec<unsigned int>")
 def layer(idx):
     return idxmap[idx].astype(onp.uint32)
 
-@ROOT.Numba.Declare(["RVec<float>", "RVec<float>", "RVec<float>", "RVec<float>"], "RVec<float>")
-def fitcorR(dxraws, dxfit, dyfit, rx):
+@ROOT.Numba.Declare(["RVec<unsigned int>", "RVec<float>"], "RVec<double>")
+def alcor(idxs, dxraws):
+    return dxraws - xvals[idxs]
+
+@ROOT.Numba.Declare(["RVec<unsigned int>", "RVec<float>"], "RVec<double>")
+def alcory(idxs, dxraws):
+    return dxraws - yvals[idxs]
+
+@ROOT.Numba.Declare(["RVec<unsigned int>", "RVec<float>", "RVec<float>"], "RVec<double>")
+def alcorR(idxs, dxraws, rx):
     #rx = rx.reshape((-1, 2))
     #rx = onp.array(rx).reshape((-1, 2))
     rx = rx.copy().reshape(-1, 2)
-    #rx = rx.copy().reshape(2, -1).transpose()
-    #print(rx)
-    #return dxraws - rx[:,0]*dxfit - rx[:,1]*dyfit
-    return dxraws - rx[:,0]*dxfit - rx[:,1]*dyfit
+    return dxraws - rx[:,0]*xvals[idxs]
+
+@ROOT.Numba.Declare(["RVec<unsigned int>", "RVec<double>"], "RVec<double>")
+def dxsel(layer, dx):
+    #return dx[onp.asarray(layer==0).nonzero()]
+    return dx[onp.asarray(onp.equal(layer,0)).nonzero()]
+
+@ROOT.Numba.Declare(["RVec<unsigned int>", "RVec<float>"], "RVec<float>")
+def dxselsp(globalidx, dx):
+    #return dx[onp.asarray(layer==0).nonzero()]
+    return dx[onp.asarray(onp.equal(globalidx,8)).nonzero()]
 
 treename = "tree"
 d = ROOT.ROOT.RDataFrame(treename,filename)
 
-d = d.Filter(jsonhelper, ["run", "lumi"], "jsonfilter")
-
-
-#d = d.Define("dx", "Numba::fitcorR(dxrecgen,dlocalx,dlocaly,rx)")
-
-#d = d.Define("dx", "dxrecgen - dlocalx")
-
-d = d.Define("dx", "dxrecgen - deigx")
-
-
-
-
+#d = d.Define("dx", "dxrecgen[1]")
+#d = d.Define("dx", "dxrecgen[0]")
 #d = d.Define("dx", "dxrecgen")
 #d = d.Define("dx", "dyrecgen")
 #d = d.Define("dx", "dxsimgen")
@@ -352,26 +352,34 @@ d = d.Define("dx", "dxrecgen - deigx")
 #d = d.Define("dx", "dxrecsim")
 #d = d.Define("dx", "dyrecsim")
 
-#cut = "genPt > 5.5 && genPt < 150."
-#d = d.Filter(cut)
+cut = "genPt > 5.5 && genPt < 150."
 
-d = d.Define("refPt", "std::abs(1./refParms[0])*std::sin(M_PI_2 - refParms[1])")
-d = d.Filter("refPt > 5.5")
-#d = d.Filter("refPt > 26.")
+d = d.Filter(cut)
 
-d = d.Define("refCharge","std::copysign(1.0f, refParms[0])")
-
-
+d = d.Define("dxraw", "dxrecgen")
+#d = d.Define("dxcor", "Numba::alcor(hitidxv, dxraw)")
+d = d.Define("dxcor", "Numba::alcorR(hitidxv, dxraw, rx)")
 
 #d = d.Filter("genEta>-1.7 && genEta<-1.4")
 #d = d.Filter("genEta>-2.4 && genEta<-2.3")
-
-#d = d.Filter("hitidxv[0]==9")
-#d = d.Filter("hitidxv[0]==24")
+#d = d.Filter("hitidxv[0]==8")
 
 d = d.Define("hitidxr", "Numba::layer(hitidxv)")
-#d = d.Define("kgen", "(1./genPt)*dxsimgen/dxsimgen")
-d = d.Define("kgen", "(1./refPt)*dxrecgen/dxrecgen")
+#d = d.Define("dx", "Numba::dxsel(hitidxr, dxcor)")
+#d = d.Define("dx", "Numba::dxselsp(hitidxv, dxcor)")
+d = d.Define("dx", "Numba::dxselsp(hitidxv, dxraw)")
+#d = d.Define("dx", "Numba::dxsel(hitidxr, dxraw)")
+#d = d.Define("dx", "dxraw")
+
+#d = d.Filter("hitidxr[0] == 0")
+
+#d = d.Filter("hitidxr[1]==3")
+
+#d = d.Define("kgen", "(1./genPt)")
+d = d.Define("kgen", "(1./genPt)*dx/dx")
+d = d.Define("eta", "genEta*dx/dx")
+#d = d.Filter("hitidxr==0")
+
 
 #nEtaBins = nglobal
 #nkbins = 50
@@ -395,6 +403,24 @@ d = d.Define("kgen", "(1./refPt)*dxrecgen/dxrecgen")
 
 #ks = onp.linspace(1./150., 1./5.5, nkbins+1)
 
+#nEtaBins = 1
+#etamin = -2.4
+#etamax = -2.3
+
+
+#nEtaBins = 48
+#etamin = -2.4
+#etamax = 2.4
+
+
+nEtaBins = 5
+etamin = -2.4
+etamax = -1.9
+
+
+#nEtaBins = 24
+####nEtaBins = 480
+etas = onp.linspace(etamin, etamax, nEtaBins+1, dtype=np.float64)
 
 
 nkbins = 25
@@ -408,8 +434,6 @@ pts = 1./onp.linspace(150., 20., nptbins+1, dtype=np.float64)
 
 ks = onp.concatenate((pts,ks[1:]),axis=0)
 
-
-
 #nkbins = 40
 #ks = 1./onp.linspace(150.,33.,nkbins+1, dtype=np.float64)
 ##ks = onp.linspace(1./150., 1./5.5, nkbins+1, dtype=np.float64)
@@ -417,23 +441,13 @@ ks = onp.concatenate((pts,ks[1:]),axis=0)
 
 
 
+nkbins = ks.shape[0]-1
 
 
 
 
 nkbinsfine = 1000
 ksfine = onp.linspace(1./150., 1./5.5, nkbinsfine+1, dtype=np.float64)
-
-if (False):
-    #override binning for isomu data
-    nptbins = 25
-    pts = 1./onp.linspace(150., 26., nptbins+1, dtype=np.float64)
-    ks = pts
-    ksfine = onp.linspace(1./150., 1./26., nkbinsfine+1, dtype=np.float64)
-
-
-nkbins = ks.shape[0]-1
-
 
 qcs = onp.array([-1.,1.], dtype=np.float64)
 kcs = 0.5*(ks[1:] + ks[:-1])
@@ -442,23 +456,18 @@ kcsfine = 0.5*(ksfine[1:] + ksfine[:-1])
 
 nqrbins = 40000
 #qrlim = 0.05
-#qrlim = 0.2
-#qrlim = 0.05
-qrlim = 0.02
+qrlim = 0.2
 #qrlim = 0.025
 #qrlim = 0.005
 qrs = onp.linspace(-qrlim,qrlim,nqrbins+1,dtype=np.float64)
 
-#dminus = d.Filter("genCharge<0")
-#dplus = d.Filter("genCharge>0")
-
-dminus = d.Filter("refCharge<0")
-dplus = d.Filter("refCharge>0")
+dminus = d.Filter("genCharge<0")
+dplus = d.Filter("genCharge>0")
 
 globs = onp.arange(nglobal+1)-0.5
 
-hdxsimgenminus = dminus.Histo3D(("hdxsimgenminus", "", nglobal, globs, nkbins, ks, nqrbins, qrs),"hitidxr","kgen", "dx")
-hdxsimgenplus = dplus.Histo3D(("hdxsimgenplus", "", nglobal, globs, nkbins, ks, nqrbins, qrs),"hitidxr","kgen", "dx")
+hdxsimgenminus = dminus.Histo3D(("hdxsimgenminus", "", nEtaBins, etas, nkbins, ks, nqrbins, qrs),"eta","kgen", "dx")
+hdxsimgenplus = dplus.Histo3D(("hdxsimgenplus", "", nEtaBins, etas, nkbins, ks, nqrbins, qrs),"eta","kgen", "dx")
 
 #print(hdxsimgen)
 
@@ -477,20 +486,20 @@ print(dxsimgen.shape)
 
 lsum = onp.sum(dxsimgen, axis=(1,2,3))
 
-goodidxs = []
-for idx in range(nglobal):
-    if lsum[idx] > 10000.:
-    #if lsum[idx] > 10000. and ( (parmlist[idx][0]==0 and parmlist[idx][1]==1) or parmlist[idx][0]==1 ):
-    #if lsum[idx] > 10000. and parmlist[idx][0] < 2:
-    #if lsum[idx] > 10000. and parmlist[idx][0]<4:
-    #if lsum[idx] > 10000. and parmlist[idx][0]>=2:
-        goodidxs.append(idx)
+#goodidxs = []
+#for idx in range(nglobal):
+    #if True:
+    ##if lsum[idx] > 10000.:
+    ##if lsum[idx] > 10000. and parmlist[idx][0]<2:
+    ##if lsum[idx] > 10000. and parmlist[idx][0]<4:
+    ##if lsum[idx] > 10000. and parmlist[idx][0]>=2:
+        #goodidxs.append(idx)
         
-goodidxs = onp.array(goodidxs)
-#goodidxs = onp.array([0])
-dxsimgen = dxsimgen[goodidxs]
+#goodidxs = onp.array(goodidxs)
+##goodidxs = onp.array([0])
+#dxsimgen = dxsimgen[goodidxs]
 
-nEtaBins = dxsimgen.shape[0]
+#nEtaBins = dxsimgen.shape[0]
 print(nEtaBins)
 #assert(0)
 
@@ -583,18 +592,18 @@ errsmodelfine = np.concatenate(errsmodelfines, axis=0)
 
 parmlistarr = onp.array(parmlist)
 
-subdets = parmlistarr[goodidxs][:,0]
-layers = parmlistarr[goodidxs][:,1]
-stereos = parmlistarr[goodidxs][:,2]
+#subdets = parmlistarr[:,0]
+#layers = parmlistarr[:,1]
+#stereos = parmlistarr[:,2]
 
 onp.savez_compressed("unbinnedfitglobalitercor.npz",
                      xbinned = xbinned,
                      errsbinned = errsbinned,
                      #hdsetks = hdsetks,
-                     #etas = etas,
-                     subdets = subdets,
-                     layers = layers,
-                     stereos = stereos,
+                     etas = etas,
+                     #subdets = subdets,
+                     #layers = layers,
+                     #stereos = stereos,
                      ks = ks,
                      xs = x,
                      ksfine = ksfine,

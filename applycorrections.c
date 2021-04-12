@@ -4,6 +4,7 @@
 #include "TChain.h"
 #include "TMatrix.h"
 #include "TSystem.h"
+#include <ROOT/TTreeProcessorMT.hxx>
 #include </usr/include/eigen3/Eigen/Dense>
 
 void applycorrections() {
@@ -13,14 +14,43 @@ void applycorrections() {
   
 //   const std::string filename = "/eos/cms/store/cmst3/group/wmass/bendavid/muoncal/Muplusandminus_Pt3to150-gun/MuonGunGlobalCor_v3/200817_213237/0000/*.root";
 //   const std::string filename = "/data/bendavid/muoncaldatalarge/Muplusandminus_Pt3to150-gun/MuonGunGlobalCor_v4/200820_002243/0000/*.root";
-  const std::string filename = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgeantint4rechelixprecrefb//globalcor_*.root";
+//   const std::string filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v23_Gen/201201_232356/0000/globalcor_*.root";
+//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v30_Rec210206_025546/0000/globalcor_*.root";
+//   const std::string filename = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/recnopxb/globalcor_*.root";
+//   const std::string filename = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/recnopxbgt1/globalcor_*.root";
+//   const std::string filename = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/recidealpxbgenxygenstart/globalcor_*.root";
+  
+//     const std::string filename = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/recideal/globalcor_*.root";
+//     const std::string filename = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/recnonidealdebugreallynotemplate/globalcor_*.root";
+//     const std::string filename = "/data/shared/muoncal/resultsqualitycompare/MuonGUNUL2016Fwd_v3_Rec_quality/210212_165132/0000/globalcor_*.root";
+//     const std::string filename = "/data/shared/muoncal/resultsqualitycompare/MuonGUNUL2016Fwd_v3_Rec_noquality/210212_165222/0000/globalcor_*.root";
+//     const std::string filename = "/data/shared/muoncal/resultsqualitycompare/MuonGUNUL2016Fwd_v4_Rec_quality/210212_220352/0000/globalcor_*.root";
+//   const std::string filename = "/data/shared/muoncal/resultsqualitycomparefulldet/MuonGunUL2016_v31_Rec/210213_015544/0000/globalcor_*.root";
+//   const std::string filename = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v32_Rec/210214_182643/0000/globalcor_*.root";
+  
+//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v33_Rec_quality/210228_002026/0000/globalcor_*.root";
+//   const std::string filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v37_Rec_quality/210311_001553/0000/globalcor_*.root";
+//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v38_Rec_quality/210403_232303/0000/globalcor_*.root";
+//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v39_Rec_quality/210403_232723/0000/globalcor_*.root";
+  
+  const std::string filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v44_Rec_quality/210411_162903/0000/globalcor_*.root";
+//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v33_Rec_noquality/210228_002110/0000/globalcor_*.root";
+//   const std::string filename = "/data/shared/muoncal/MuonGUNUL2016Fwd_v33_Rec_idealquality/210228_002451/0000/globalcor_*.root";
+  
   
 //   gSystem->Setenv("XRD_REQUESTTIMEOUT","30");
   
   Eigen::initParallel();
-  ROOT::EnableImplicitMT();
+  ROOT::EnableImplicitMT(32);
+//   ROOT::TTreeProcessorMT::SetMaxTasksPerFilePerWorker(1);
+
   
-  TFile *fcor = TFile::Open("correctionResults.root");
+//   TFile *fcor = TFile::Open("correctionResults.root");
+  TFile *fcor = TFile::Open("results_V37_01p567quality/correctionResults.root");
+//   TFile *fcor = TFile::Open("correctionResultsV23.root");
+//   TFile *fcor = TFile::Open("correctionResultsIdeal.root");
+//   TFile *fcor = TFile::Open("correctionResultsV30.root");
+//   TFile *fcor = TFile::Open("correctionResults2016.root");
 //   TFile *fcor = TFile::Open("correctionResultsModule.root");
 //   TFile *fcor = TFile::Open("correctionResultsFullGen.root");
   
@@ -200,14 +230,15 @@ void applycorrections() {
 
   
   ROOT::RDataFrame d(treename, filename);
-  auto dcut = d.Filter("genPt>0. && genEta<-2.3");
+//   auto dcut = d.Filter("genPt>0. && genEta<-2.3");
+//   auto dcut = d.Filter("genPt>0.");
   
-  auto d2 = dcut.Define("corParms", correctParms, { "refParms", "jacrefv", "globalidxv" });
+  auto d2 = d.Define("corParms", correctParms, { "refParms", "jacrefv", "globalidxv" });
   
 //   auto d3 = d2.Snapshot(treename, outfilename,  { "trackPt", "trackPtErr", "trackEta", "trackPhi", "trackCharge", "trackParms", "trackCov", "refParms", "refCov", "genParms", "genPt", "genEta", "genPhi", "genCharge", "run", "lumi", "event", "corParms" } );
   
   std::cout << "starting snapshot:" << std::endl;
-    auto d3 = d2.Snapshot(treename, outfilename,  { "trackPt", "trackPtErr", "trackEta", "trackPhi", "trackCharge", "trackParms", "trackCov", "refParms", "refCov", "genParms", "genPt", "genEta", "genPhi", "genCharge", "corParms", "gradmax", "hessmax" } );
+    auto d3 = d2.Snapshot(treename, outfilename,  { "trackPt", "trackPtErr", "trackEta", "trackPhi", "trackCharge", "trackParms", "trackCov", "refParms", "refCov", "genParms", "genPt", "genEta", "genPhi", "genCharge", "corParms", "hitidxv", "nValidHits" } );
 
     
   std::cout << "done snapshot:" << std::endl;

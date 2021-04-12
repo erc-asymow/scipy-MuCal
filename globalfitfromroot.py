@@ -69,7 +69,7 @@ def deltaphi(phi1,phi2):
 
 #filenameinfo = "/data/bendavid/cmsswdevslc6/CMSSW_8_0_30/work/trackTreeGradsParmInfo.root"
 #filenameinfo = "/data/bendavid/cmsswdevslc6/CMSSW_10_2_23/work/trackTreeGradsParmInfo.root"
-filenameinfo = "/data/bendavid/cmsswdev/muonscale/CMSSW_10_6_17_patch1/work/resultsgeantintgenhelixprecrefb///globalcor_0.root"
+filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v21_Gen/201130_004723/0000/globalcor_0_1.root"
 finfo = ROOT.TFile.Open(filenameinfo)
 
 #runtree = finfo.tree
@@ -118,8 +118,8 @@ parmset = set()
 parmlistfull = []
 for iidx,parm in enumerate(runtree):
     parmtype = runtree.parmtype
-    #ieta = math.floor(runtree.eta/0.1)
-    ieta = runtree.stereo
+    ieta = math.floor(runtree.eta/0.1)
+    #ieta = runtree.stereo
     iphi = math.floor(runtree.phi/(math.pi/8.))
     #iphi = math.floor(runtree.phi/(math.pi/1024.))
     #iphi = 0
@@ -128,20 +128,22 @@ for iidx,parm in enumerate(runtree):
     layer = abs(runtree.layer)
     #if (parmtype==2 and subdet==0 and layer==1) :
     #if (parmtype!=2):
-    if (False):
+    #if (False):
     #if (parmtype==2):
     #if (parmtype!=2 or (subdet==0 and layer==1)) :
     #if (parmtype>2):
     #if (abs(gradfull[ieta,0])<1e-9):
+    if parmtype not in [0,2]:
+    #if parmtype > 1 or subdet > 1:
         parmtype = -1
         subdet = -1
         layer = -1
         ieta = 0
         iphi = 0
     #elif (parmtype==3):
-    #else:
-        #ieta = iidx
-        #iphi = 0
+    else:
+        ieta = iidx
+        iphi = 0
       
   #if parmtype>1:
     #if (subdet==3 and layer==7) or (subdet==5 and layer==9):
@@ -204,19 +206,25 @@ np.add.at(grad.ravel(), idxmap, gradfull.ravel())
 
 lock = threading.Lock()
 hesstmps = {}
-def inithesstmp():
-  with lock:
-    hesstmps[threading.get_ident()] = np.zeros((nglobal,nglobal),dtype=np.float64)
+#def inithesstmp():
+  #with lock:
+    #hesstmps[threading.get_ident()] = np.zeros((nglobal,nglobal),dtype=np.float64)
 
 print("reducing hess")
 stepsize = 200
 def fillhess(i):
-  hesstmp = hesstmps[threading.get_ident()]
+  #hesstmp = hesstmps[threading.get_ident()]
+  with lock:
+    hesstmp = hesstmps.get(threading.get_ident())
+    if hesstmp is None:
+      hesstmp = np.zeros((nglobal,nglobal),dtype=np.float64)
+      hesstmps[threading.get_ident()] = hesstmp
   end = np.minimum(i+stepsize, hessfull.shape[0])
   idxs = nglobal*idxmap[i:end, np.newaxis] + idxmap[np.newaxis,:]
   np.add.at(hesstmp.ravel(), idxs.ravel(), hessfull[i:end].ravel())
 
-with concurrent.futures.ThreadPoolExecutor(max_workers=32, initializer=inithesstmp) as e:
+#with concurrent.futures.ThreadPoolExecutor(max_workers=32, initializer=inithesstmp) as e:
+with concurrent.futures.ThreadPoolExecutor(max_workers=32) as e:    
   results = e.map(fillhess, range(0, hessfull.shape[0], stepsize))
 
 hessfull = None
@@ -411,9 +419,11 @@ errs = np.sqrt(2.*np.diag(cov))
 #cov = hess
 #errs = np.sqrt(2./np.diag(cov))
 
+#errs = np.sqrt(2./np.diag(hess))
+
 #write output file
-#fout = ROOT.TFile.Open("correctionResults.root", "RECREATE")
 fout = ROOT.TFile.Open("correctionResults.root", "RECREATE")
+#fout = ROOT.TFile.Open("correctionResults2016.root", "RECREATE")
 
 idxmaptree = ROOT.TTree("idxmaptree","")
 idx = np.empty((1), dtype=np.uint32)

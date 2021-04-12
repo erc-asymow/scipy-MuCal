@@ -61,11 +61,11 @@ with np.load(fname) as f:
     scalesigmamodelfine = f["scalesigmamodelfine"]
     #errsmodel = f["errsmodel"]
     errsmodelfine = f["errsmodelfine"]
-    #etas = f["etas"]
+    etas = f["etas"]
     ks = f["ks"]
-    subdets = f["subdets"]
-    layers = f["layers"]
-    stereos = f["stereos"]
+    #subdets = f["subdets"]
+    #layers = f["layers"]
+    #stereos = f["stereos"]
     ksfine = f["ksfine"]
     xs = f["xs"]
     xerrs = f["xerrs"]
@@ -186,6 +186,11 @@ subdetlabels = ["PXB", "PXE", "TIB", "TOB", "TID", "TEC"]
          #"Z2",
          #]
 
+etasc = 0.5*(etas[1:] + etas[:-1])
+etasl = etas[:-1]
+etash = etas[1:]
+etasw = etas[1:] - etas[:-1]
+
 #A,e,M,a,b,c,d,W,Y,Z,V,e2,Z2 = xs.T
 #Aerr,eerr,Merr,aerr,berr,cerr,derr,Werr,Yerr,Zerr,Verr,e2err,Z2err = xerrs.T
 
@@ -215,24 +220,23 @@ for iparm in range(xs.shape[1]):
         #val = val**2
     
     plot = plt.figure()
-    plt.errorbar(range(xs.shape[0]), val, xerr=0.5, yerr=err,fmt='none')
+    plt.errorbar(etasc, val, xerr=0.5*etasw, yerr=err,fmt='none')
     plt.title(label)
     plt.xlabel("$\eta$")
     #if isres:
         #plt.ylim(bottom=0.)
     plot.savefig(f"plots/parm_{iparm}.{imgtype}")
 
-#plt.show()
+plt.show()
 
 for ieta in range(xbinned.shape[0]):
-#for ieta in range(4):
-    subdetlabel = subdetlabels[subdets[ieta]]
-    layer = layers[ieta]
-    stereo = stereos[ieta]
-    if stereo>0:
-        stereolabel = "stereo"
-    else:
-        stereolabel = "rphi"
+    #subdetlabel = subdetlabels[subdets[ieta]]
+    #layer = layers[ieta]
+    #stereo = stereos[ieta]
+    #if stereo>0:
+        #stereolabel = "stereo"
+    #else:
+        #stereolabel = "rphi"
     
     #ksplus = hdsetks[ieta,1,:]
     #ksminus = hdsetks[ieta,0,:]
@@ -294,7 +298,7 @@ for ieta in range(xbinned.shape[0]):
     plt.errorbar(-ksminus,scalebinnedminus, xerr=-xerrminus, yerr=scalebinnedminuserr,fmt='none')
     plt.xlabel("$q\ k$ (GeV$^{-1}$)")
     plt.ylabel("$\delta x (cm)$")
-    plt.title(f"Bias: {subdetlabel} layer {layer} {stereolabel}")
+    plt.title(f"Bias: ieta = {ieta}")
     
     #p1 = plt.plot(ksfine, scaleplusalt)
     #plt.legend((p1,),('$-M/k - 0.5\sigma^2$',))
@@ -310,7 +314,7 @@ for ieta in range(xbinned.shape[0]):
     plt.errorbar(-1./ksminus,scalebinnedminus, xerr=-xerrminuspt, yerr=scalebinnedminuserr,fmt='none')
     plt.xlabel("$q\ p_T$ (GeV)")
     plt.ylabel("$\delta x (cm)$")
-    plt.title(f"Bias: {subdetlabel} layer {layer} {stereolabel}")
+    plt.title(f"Bias: ieta = {ieta}")
     #plt.title(f"Scale, ${etasl[ieta]:.1f}\leq \eta < {etash[ieta]:.1f}$")
     #plt.plot(1./ksfine,scaleplusalt)
     plt.savefig(f"plots/scalept_{ieta}.{imgtype}")    
@@ -330,7 +334,7 @@ for ieta in range(xbinned.shape[0]):
         plt.errorbar(-ksminus,sigmabinnedminus, xerr=-xerrminus, yerr=sigmabinnedminuserr,fmt='none')
         plt.xlabel("$q\ k$ (GeV$^{-1}$)")
         plt.ylabel("$\sigma^2_x (cm^2)$")
-        plt.title(f"Resolution: {subdetlabel} layer {layer} {stereolabel}")
+        plt.title(f"Resolution: ieta = {ieta}")
         #plt.title(f"Resolution, ${etasl[ieta]:.1f}\leq \eta < {etash[ieta]:.1f}$")
         plt.savefig(f"plots/res_{ieta}.{imgtype}")
         
@@ -344,7 +348,7 @@ for ieta in range(xbinned.shape[0]):
         plt.xlabel("$q\ p_T$ (GeV)")
         plt.ylabel("$\sigma^2_x (cm^2)$")
         #plt.title(f"Resolution, ${etasl[ieta]:.1f}\leq \eta < {etash[ieta]:.1f}$")
-        plt.title(f"Resolution: {subdetlabel} layer {layer} {stereolabel}")
+        plt.title(f"Resolution: ieta = {ieta}")
         plt.savefig(f"plots/respt_{ieta}.{imgtype}")
     
         #plt.show()
@@ -362,4 +366,4 @@ for ieta in range(xbinned.shape[0]):
 
     #plt.errorbar(kc,sigmakplus[0,:],yerr=None, xerr=0.5*kw)
 
-#plt.show()
+##plt.show()
