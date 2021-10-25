@@ -1,5 +1,6 @@
 import sympy
-from sympy.printing.cxxcode import cxxcode
+#from sympy.printing.cxxcode import cxxcode
+from sympy.printing.cxx import cxxcode
 from sympy.utilities.iterables import numbered_symbols
 from sympy.vector import CoordSys3D
 
@@ -28,7 +29,7 @@ Uy = sympy.Symbol("Uy")
 
 Vx = sympy.Symbol("Vx")
 Vy = sympy.Symbol("Vy")
-Vz = sympy.Symbol("Vz")
+#Vz = sympy.Symbol("Vz")
 
 pos0x = sympy.Symbol("pos0x")
 pos0y = sympy.Symbol("pos0y")
@@ -49,7 +50,7 @@ K = Kx*coords.i + Ky*coords.j + Kz*coords.k
 r = rx*coords.i + ry*coords.j + rz*coords.k
 
 U = Ux*coords.i + Uy*coords.j
-V = Vx*coords.i + Vy*coords.j + Vz*coords.k
+V = Vx*coords.i + Vy*coords.j
 
 pos0 = pos0x*coords.i + pos0y*coords.j + pos0z*coords.k
 
@@ -69,14 +70,13 @@ shat = shat.simplify()
 results.append(shat)
 labels.append("shat")
 
-print("shat")
-print(shat)
+#print(shat)
 
 x = x.subs(s,shat)
 x = x.simplify()
 
-v = x.dot(J)
-w = x.dot(K)
+v = (x-r).dot(J)
+w = (x-r).dot(K)
 
 parms = [v, w]
 parmlabels = ["v", "w"]

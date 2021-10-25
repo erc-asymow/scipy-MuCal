@@ -9,6 +9,7 @@ import scipy.linalg
 import sys
 import scipy.sparse.linalg
 import scipy.sparse
+import h5py
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -110,27 +111,48 @@ testsize = nparmsfull
 gradfull = np.zeros((testsize,1), dtype=np.float64)
 hessfull = np.zeros((testsize, testsize), dtype=np.float64)
 
-filenamegrads = "combinedgrads.root"
+filenamegrads = "combinedgrads.hdf5"
 #filenamegrads = "combinedgradsrec.root"
 #filenamegrads = "/data/bendavid/muoncaldata/combinedgrads.root"
-fgrads = ROOT.TFile.Open(filenamegrads)
-gradtree = fgrads.tree
+#fgrads = ROOT.TFile.Open(filenamegrads)
+#gradtree = fgrads.tree
 
-row = np.zeros((nparmsfull,), dtype=np.float64)
+#row = np.zeros((nparmsfull,), dtype=np.float64)
+
+#chunksize = 32
+
+#fgrads = h5py.File(filenamegrads, rdcc_nbytes = nparmsfull*8*chunksize*4, rdcc_nslots = nparmsfull//chunksize*10)
+fgrads = h5py.File("combinedgrads.hdf5")
+gradd = fgrads["grad"]
+hessd = fgrads["hess"]
+
+gradfull[:,0] = 0.5*gradd[...]
 
 print("loading grads")
-for i, entry in enumerate(gradtree):
-  if i== testsize:
-      break
+#for i, entry in enumerate(gradtree):
+for i in range(nparmsfull):
+  #if i== testsize:
+      #break
   #break
   #print(i)
   if i%5000 == 0:
       print(i)
   #gradfull[i,0] = entry.gradelem
   #hessfull[i] = entry.hessrow
-  gradfull[i,0] = 0.5*entry.gradelem
-  row[...] = entry.hessrow
-  hessfull[i] = 0.5*row[:testsize]
+  #gradfull[i,0] = 0.5*entry.gradelem
+  #row[...] = entry.hessrow
+  #hessfull[i] = 0.5*row[:testsize]
+  hessfull[i] = 0.5*hessd[i]
+
+#nfilled = 0
+#for i in range(nparmsfull):
+    #for j in range(nparmsfull):
+        #if hessfull[i,j] != 0.:
+            #nfilled += 1
+
+
+
+
 
 #nonzero = np.count_nonzero(hessfull)
 #print("nonzero", nonzero)
@@ -139,7 +161,15 @@ for i, entry in enumerate(gradtree):
 print("filling in lower triangular part of hessian")
 def filllower(i):
   hessfull[i,:i] = hessfull[:i,i]
-  
+
+
+#nfilled = np.count_nonzero(hessfull)
+
+#print(nfilled)
+#print(nparmsfull*nparmsfull)
+#print(float(nfilled)/float(nparmsfull*nparmsfull))
+
+#assert(0)
   
 with concurrent.futures.ThreadPoolExecutor(64) as e:
   results = e.map(filllower, range(hessfull.shape[0]))

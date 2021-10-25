@@ -29,6 +29,7 @@ imgtype = "png"
 #fname = "unbinnedfitglobaliter.npz"
 #fname = "unbinnedfitkforig.npz"
 fname = "unbinnedfitglobalitercorscale.npz"
+fnamereplicas = "unbinnedfitglobalitercorscalereplicas.npz"
 
 #fname = "unbinnedfitglobalcortest.npz"
 #fname = "unbinnedfitglobal.npz"
@@ -92,6 +93,19 @@ print(etas)
 print(ks)
 #print(dkplus)
 
+#doreplicas = True
+doreplicas = False
+
+
+if doreplicas:
+    with np.load(fnamereplicas) as f:
+        xreplicas = f["xs"]
+        
+        xrms = np.std(xreplicas, axis=0)
+
+    print(xreplicas.shape)
+    print(xrms.shape)
+#assert(0)
 
 
 for iparm in range(xs.shape[1]):
@@ -112,6 +126,10 @@ for iparm in range(xs.shape[1]):
     plt.xlabel("$\eta$")
     #if isres:
         #plt.ylim(bottom=0.)
+    if doreplicas:
+        rms = xrms[:, iparm]
+        plt.fill_between(etasc,val-rms, val+rms, alpha=0.5)
+
     plot.savefig(f"{plotdir}/parm_{iparm}.{imgtype}")
 
 

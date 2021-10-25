@@ -18,6 +18,7 @@ Uy = sympy.Symbol("Uy")
 
 Vx = sympy.Symbol("Vx")
 Vy = sympy.Symbol("Vy")
+Vz = sympy.Symbol("Vz")
 
 Ix = sympy.Symbol("Ix")
 Iy = sympy.Symbol("Iy")
@@ -32,7 +33,7 @@ Ky = sympy.Symbol("Ky")
 Kz = sympy.Symbol("Kz")
 
 U = Ux*coords.i + Uy*coords.j
-V = Vx*coords.i + Vy*coords.j
+V = Vx*coords.i + Vy*coords.j + Vz*coords.k
 W = Wx*coords.i + Wy*coords.j + Wz*coords.k
 
 I = Ix*coords.i + Iy*coords.j + Iz*coords.k

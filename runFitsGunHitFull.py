@@ -104,8 +104,86 @@ jsonhelper = lumitools.make_jsonhelper("data/Cert_271036-284044_13TeV_Legacy2016
 #filename = "/data/shared/muoncal/MuonGunUL2016_v42_RecDataMuIsoH_noquality/210405_185116/0000/globalcor_*.root"
 #filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v42_RecDataMuIsoH_noquality/210405_185116/0000/globalcor_0_1.root"
 
-filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v36plus2_Rec_noquality/210405_185722/0000/globalcor_0_1.root"
-filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v36plus2_Rec_noquality/210405_185722/0000/globalcor_*.root"
+#filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v36plus2_Rec_noquality/210405_185722/0000/globalcor_0_1.root"
+#filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v36plus2_Rec_noquality/210405_185722/0000/globalcor_*.root"
+
+#filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/MuonGunDesign_GeantInt/MuonGunUL2016_v33_Rec_idealquality/210307_161142/0000/globalcor_0_1.root"
+#filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/MuonGunDesign_GeantInt/MuonGunUL2016_v33_Rec_idealquality/210307_161142/0000/globalcor_*.root"
+
+#filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/MuonGunDesign_GeantInt/MuonGunUL2016_v54_Gen_idealquality/210429_092032/0000/globalcor_0_1.root"
+#filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/MuonGunDesign_GeantInt/MuonGunUL2016_v54_Gen_idealquality/210429_092032/0000/globalcor_*.root"
+
+#filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v113_RecJpsiPhotos_quality_constraint/210721_170757/0000/globalcor_0_1.root"
+#filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v121_Gen_idealquality/210725_154147/0000/globalcor_0_10.root"
+#filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v171_RecJpsiPhotos_idealquality_constraint/210911_050035/0000/globalcor_0_1.root"
+filenameinfo = "infofullbz.root"
+#filename = "/data/shared/muoncal/MuonGunUL2016_v66_Rec_quality_nobs/210509_195947/0000/globalcor_*.root"
+
+chain = ROOT.TChain("tree")
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v66_Gen_quality/210509_200135/0000/globalcor_*.root")
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v76_Gen_quality/210629_144601/0000/globalcor_*.root")
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v84_GenJpsiPhotosSingle_quality/210707_164413/0000/globalcor_*.root")
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v121_Gen_idealquality/210725_154147/0000/globalcor_*.root")
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v121_Gen_idealquality_zeromaterial/210726_002805/0000/globalcor_*.root")
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v107_GenJpsiPhotosSingle_quality/210719_142518/0000/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v107_GenJpsiPhotosSingle_quality/210719_142518/0001/globalcor_*.root");
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v123_Gen_quality/210728_174037/0000/globalcor_0_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v123_Gen_quality/210728_174037/0001/globalcor_0_*.root");
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v85_Gen_quality/210708_095424/0000/globalcor_*.root")
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v85_GenJpsiPhotosSingle_quality/210708_094852/0000/globalcor_*.root")
+
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v82c_GenJpsiPhotosSingle_quality/210706_102419/0000/globalcor_*.root")
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v81_GenJpsiPhotosSingle_quality/210705_124339/0000/globalcor_*.root")
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v66_Rec_quality_nobs/210509_195947/0000/globalcor_*.root")
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v81_RecJpsiPhotosSingle_quality/210704_225624/0000/globalcor_*.root")
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v161a_Gen_idealquality_nograds/210901_180544/0000/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v161a_Gen_idealquality_nograds/210901_180544/0001/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v161_GenJpsiPhotosSingle_idealquality_nograds/210901_160653/0000/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v161_GenJpsiPhotosSingle_idealquality_nograds/210901_160653/0001/globalcor_*.root");
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_Gen_idealquality/210913_032945/0000/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_Gen_idealquality/210913_032945/0001/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_GenJpsiPhotosSingle_idealquality/210913_032642/0000/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_GenJpsiPhotosSingle_idealquality/210913_032642/0001/globalcor_*.root");
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_Gen_idealquality_zeromaterial_nograds/210913_155341/0000/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_Gen_idealquality_zeromaterial_nograds/210913_155341/0001/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_GenJpsiPhotosSingle_idealquality_zeromaterial_nograds/210913_155453/0000/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_GenJpsiPhotosSingle_idealquality_zeromaterial_nograds/210913_155453/0001/globalcor_*.root");
+
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_Gen_idealquality/210930_200938/0000/*.root")
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_Gen_idealquality/210930_200938/0001/*.root")
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_GenJpsiPhotosSingle_idealquality/210930_201130/0000/*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_GenJpsiPhotosSingle_idealquality/210930_201130/0001/*.root");
+
+chain.Add("/data/shared/muoncal/MuonGunUL2016_v205_Gen_idealquality/211002_182020/0000/*.root");
+chain.Add("/data/shared/muoncal/MuonGunUL2016_v205_Gen_idealquality/211002_182020/0001/*.root");
+chain.Add("/data/shared/muoncal/MuonGunUL2016_v205_GenJpsiPhotosSingle_idealquality/211002_181835/0000/*.root");
+chain.Add("/data/shared/muoncal/MuonGunUL2016_v205_GenJpsiPhotosSingle_idealquality/211002_181835/0001/*.root");
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_Gen_idealquality_zeromaterial/210930_201608/0000/*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_Gen_idealquality_zeromaterial/210930_201608/0001/*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_GenJpsiPhotosSingle_idealquality_zeromaterial/210930_201436/0000/*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_GenJpsiPhotosSingle_idealquality_zeromaterial/210930_201436/0001/*.root");
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v204_Gen_idealquality/211002_132131/0000/*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v204_Gen_idealquality/211002_132131/0001/*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v204_GenJpsiPhotosSingle_idealquality/211002_132415/0000/*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v204_GenJpsiPhotosSingle_idealquality/211002_132415/0001/*.root");
+
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v177_Gen_idealquality/210913_173054/0000/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v177_Gen_idealquality/210913_173054/0001/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v177_GenJpsiPhotosSingle_idealquality/210913_172953/0000/globalcor_*.root");
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v177_GenJpsiPhotosSingle_idealquality/210913_172953/0001/globalcor_*.root");
 
 #filename = "/data/shared/muoncal/MuonGunUL2016_v30_Gen210206_025446/0000/globalcor_*.root"
 #filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v30_Gen210206_025446/0000/globalcor_0_1.root"
@@ -131,6 +209,7 @@ def logsigpdfbinned(mu,sigma,krs):
     #sigma = 2e-3
     
     alpha = 3.0
+    #alpha = 1.0
     alpha1 = alpha
     alpha2 = alpha
     
@@ -194,6 +273,7 @@ def nllbinned(parms, dataset, krs):
 
 def scale(A,e,M,R,k,q):
     return q*k*A + e*k**2 + M + q*R
+    #return q*k*A + q*e*k**2 + M + q*R
 
 def sigmasq(a, c, k):
     return c + a*k**2
@@ -331,7 +411,8 @@ def fitcorR(dxraws, dxfit, dyfit, rx):
     return dxraws - rx[:,0]*dxfit - rx[:,1]*dyfit
 
 treename = "tree"
-d = ROOT.ROOT.RDataFrame(treename,filename)
+#d = ROOT.ROOT.RDataFrame(treename,filename)
+d = ROOT.ROOT.RDataFrame(chain)
 
 d = d.Filter(jsonhelper, ["run", "lumi"], "jsonfilter")
 
@@ -340,29 +421,49 @@ d = d.Filter(jsonhelper, ["run", "lumi"], "jsonfilter")
 
 #d = d.Define("dx", "dxrecgen - dlocalx")
 
-d = d.Define("dx", "dxrecgen - deigx")
+#d = d.Define("dx", "dxrecgen - deigx")
 
 
 
 
+#d = d.Define("dx", "E/Epred - 1.")
+#d = d.Define("dx", "dE/dEpred - 1.")
 #d = d.Define("dx", "dxrecgen")
 #d = d.Define("dx", "dyrecgen")
 #d = d.Define("dx", "dxsimgen")
 #d = d.Define("dx", "dysimgen")
+#d = d.Define("dx", "dxsimgenconv")
+#d = d.Define("dx", "dysimgenconv")
+#d = d.Define("dx", "dxsimgenlocal")
+d = d.Define("dx", "dysimgenlocal")
 #d = d.Define("dx", "dxrecsim")
 #d = d.Define("dx", "dyrecsim")
 
 #cut = "genPt > 5.5 && genPt < 150."
 #d = d.Filter(cut)
 
+#ptmin = 3.5
+ptmin = 1.1
+#ptmin = 0.9
+
 d = d.Define("refPt", "std::abs(1./refParms[0])*std::sin(M_PI_2 - refParms[1])")
-d = d.Filter("refPt > 5.5")
+#d = d.Filter("refPt > 5.5")
+d = d.Filter(f"genPt > {ptmin}")
 #d = d.Filter("refPt > 26.")
 
 d = d.Define("refCharge","std::copysign(1.0f, refParms[0])")
 
+d = d.Filter("genEta>0.")
+#d = d.Filter("genEta<0.")
 
+#d = d.Filter("dE!= -99.")
 
+#d = d.Filter("genEta>1.6 && genEta<2.2")
+#d = d.Filter("genEta>1.3 && genEta<1.5")
+#d = d.Filter("abs(genEta) < 0.8")
+#d = d.Filter("genEta>2.3 && genEta<2.4")
+
+#d = d.Filter("genEta>0.1 && genEta<0.3")
 #d = d.Filter("genEta>-1.7 && genEta<-1.4")
 #d = d.Filter("genEta>-2.4 && genEta<-2.3")
 
@@ -370,8 +471,8 @@ d = d.Define("refCharge","std::copysign(1.0f, refParms[0])")
 #d = d.Filter("hitidxv[0]==24")
 
 d = d.Define("hitidxr", "Numba::layer(hitidxv)")
-#d = d.Define("kgen", "(1./genPt)*dxsimgen/dxsimgen")
-d = d.Define("kgen", "(1./refPt)*dxrecgen/dxrecgen")
+d = d.Define("kgen", "(1./genPt)*dxsimgen/dxsimgen")
+#d = d.Define("kgen", "(1./refPt)*dxrecgen/dxrecgen")
 
 #nEtaBins = nglobal
 #nkbins = 50
@@ -398,7 +499,7 @@ d = d.Define("kgen", "(1./refPt)*dxrecgen/dxrecgen")
 
 
 nkbins = 25
-ks = onp.linspace(1./20., 1./5.5, nkbins+1, dtype=np.float64)
+ks = onp.linspace(1./20., 1./ptmin, nkbins+1, dtype=np.float64)
 
 #nptbins = 40
 #ks = 1./onp.linspace(150., 5.5, nptbins+1, dtype=np.float64)
@@ -422,7 +523,7 @@ ks = onp.concatenate((pts,ks[1:]),axis=0)
 
 
 nkbinsfine = 1000
-ksfine = onp.linspace(1./150., 1./5.5, nkbinsfine+1, dtype=np.float64)
+ksfine = onp.linspace(1./150., 1./ptmin, nkbinsfine+1, dtype=np.float64)
 
 if (False):
     #override binning for isomu data
@@ -440,20 +541,33 @@ kcs = 0.5*(ks[1:] + ks[:-1])
 
 kcsfine = 0.5*(ksfine[1:] + ksfine[:-1])
 
-nqrbins = 40000
+#nqrbins = 40000
+#qrlim = 0.5
+
+#nqrbins = 4000
+qrlim = 5.0
+#qrlim = 0.1
+
+nqrbins = 4000
+#qrlim = 1.0
 #qrlim = 0.05
+#qrlim = 0.01
 #qrlim = 0.2
+
 #qrlim = 0.05
-qrlim = 0.02
+
+#qrlim = 0.05
+#qrlim = 0.02
+#qrlim = 0.1
 #qrlim = 0.025
 #qrlim = 0.005
 qrs = onp.linspace(-qrlim,qrlim,nqrbins+1,dtype=np.float64)
 
-#dminus = d.Filter("genCharge<0")
-#dplus = d.Filter("genCharge>0")
+dminus = d.Filter("genCharge<0")
+dplus = d.Filter("genCharge>0")
 
-dminus = d.Filter("refCharge<0")
-dplus = d.Filter("refCharge>0")
+#dminus = d.Filter("refCharge<0")
+#dplus = d.Filter("refCharge>0")
 
 globs = onp.arange(nglobal+1)-0.5
 
@@ -527,7 +641,8 @@ hdset = dxsimgen
 
 
 #xbinned = pmin(fgbinned, xbinned, (hdset,qrs), jac=True, h=None, edmtol = 1e-3, reqposdef = False)
-xbinned = pmin(fgbinned, xbinned, (hdset,qrs), jac=True, h=hbinned, edmtol = 1e-5)
+#xbinned = pmin(fgbinned, xbinned, (hdset,qrs), jac=True, h=hbinned, edmtol = 1e-5)
+xbinned = pmin(fgbinned, xbinned, (hdset,qrs), jac=True, h=hbinned, edmtol = 1e-2)
 
 hessbinned = hbinned(xbinned, hdset, qrs)
 covbinned = np.linalg.inv(hessbinned)

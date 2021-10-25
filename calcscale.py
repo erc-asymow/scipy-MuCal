@@ -3,7 +3,7 @@ from sympy.matrices import Matrix, ones, zeros, hadamard_product, BlockMatrix, b
 from sympy import init_printing
 init_printing() 
 
-N = 5
+N = 3
 
 sigma = sympy.symbols("sigma")
 a = sympy.symbols("a")
@@ -48,6 +48,8 @@ dA = sympy.symbols("dA")
 dA2 = sympy.symbols("dA2")
 epsilon = sympy.symbols("epsilon")
 k_g = sympy.symbols("k_g")
+q = sympy.symbols("q")
+R = sympy.symbols("R")
 
 #M1 = sympy.symbols("M1")
 #M2 = sympy.symbols("M2")
@@ -69,8 +71,10 @@ def ytrueinit(i,j):
     #if i==1:
         #res += dA*k
     
-    if i==3:
-        res += dA*k + M - epsilon*k**2
+    if i==1:
+        #res += dA*q*k + M - epsilon*q*k**2
+        res += dA*q*k + M - epsilon*q*k**2 + q*R
+        pass
     
     #if i>2:
         #res += dA*k + M - epsilon*k**2
