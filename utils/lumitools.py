@@ -3,11 +3,16 @@ import json
 import ROOT
 import pathlib
 
-def init_lumitools():
-    #print(__file__)
-    #print(pathlib.Path(__file__).parent)
-    ROOT.gSystem.CompileMacro(f"{pathlib.Path(__file__).parent}/lumitools.cpp")
-    #ROOT.gInterpreter.Declare('#include "lumitools.cpp"')
+ROOT.gInterpreter.Declare(f'#include "{pathlib.Path(__file__).parent}/lumitools.cpp"')
+
+#print("importing lumitools")
+
+#def init_lumitools():
+    ##print(__file__)
+    ##print(pathlib.Path(__file__).parent)
+    ##ROOT.gSystem.CompileMacro(f"{pathlib.Path(__file__).parent}/lumitools.cpp")
+    #status = ROOT.gInterpreter.Declare(f'#include "{pathlib.Path(__file__).parent}/lumitools.cpp"')
+    #assert(status)
 
 def make_lumihelper(filename):
     runs = []

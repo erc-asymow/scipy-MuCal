@@ -7,7 +7,7 @@
 #include <ROOT/TTreeProcessorMT.hxx>
 #include </usr/include/eigen3/Eigen/Dense>
 
-void applycorrections() {
+void applycorrectionsmulti() {
   
 //   filename = "root://eoscms.cern.ch///store/group/phys_smp/emanca/data/*.root";
 //   const std::string filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/Muplusandminus_Pt3to150-gun/MuonGunGlobalCor_v3/200817_213237/0000/*.root";
@@ -96,152 +96,12 @@ void applycorrections() {
 //   chain.Add("/data/shared/muoncal/MuonGunUL2016_v146_RecJpsiPhotosSingle_quality/210809_232246/0001/globalcor_*.root");
   
   
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v148_Rec_quality_nobs/210811_193800/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v148_Rec_quality_nobs/210811_193800/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v148_RecJpsiPhotosSingle_quality/210811_193533/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v148_RecJpsiPhotosSingle_quality/210811_193533/0001/globalcor_*.root");
+  chain.Add("/data/shared/muoncal/MuonGunUL2016_v148_Rec_quality_nobs/210811_193800/0000/globalcor_*.root");
+  chain.Add("/data/shared/muoncal/MuonGunUL2016_v148_Rec_quality_nobs/210811_193800/0001/globalcor_*.root");
+  chain.Add("/data/shared/muoncal/MuonGunUL2016_v148_RecJpsiPhotosSingle_quality/210811_193533/0000/globalcor_*.root");
+  chain.Add("/data/shared/muoncal/MuonGunUL2016_v148_RecJpsiPhotosSingle_quality/210811_193533/0001/globalcor_*.root");
 
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v149_Rec_idealquality_biasm10/210816_163357/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v149_RecJpsiPhotosSingle_idealquality_biasm10/210816_163235/0000/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v149_Rec_idealquality/210816_163814/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v149_RecJpsiPhotosSingle_idealquality/210816_163923/0000/globalcor_*.root");
 
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v149_Rec_idealquality_zeromaterial/210817_033749/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v149_RecJpsiPhotosSingle_idealquality_zeromaterial/210817_033607/0000/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v150_Rec_idealquality/210817_174641/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v150_RecJpsiPhotosSingle_idealquality/210817_174930/0000/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v151_Rec_idealquality/210818_012538/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v151_RecJpsiPhotosSingle_idealquality/210818_012427/0000/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v153a_Rec_idealquality/210820_001101/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v153a_RecJpsiPhotosSingle_idealquality/210820_001342/0000/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v154_Rec_idealquality/210820_123423/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v154_RecJpsiPhotosSingle_idealquality/210820_123120/0000/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v155_Rec_idealquality/210822_141551/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v155_Rec_idealquality/210822_141551/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v155_RecJpsiPhotosSingle_idealquality/210822_141816/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v155_RecJpsiPhotosSingle_idealquality/210822_141816/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v158_Rec_idealquality/210829_164324/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v158_Rec_idealquality/210829_164324/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v158_RecJpsiPhotosSingle_idealquality/210829_164132/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v158_RecJpsiPhotosSingle_idealquality/210829_164132/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v161_Rec_idealquality/210901_104621/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v161_Rec_idealquality/210901_104621/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v161_RecJpsiPhotosSingle_idealquality/210901_104513/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v161_RecJpsiPhotosSingle_idealquality/210901_104513/0001/globalcor_*.root");
-
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v164_Rec_idealquality/210903_020951/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v164_Rec_idealquality/210903_020951/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v164_RecJpsiPhotosSingle_idealquality/210903_020844/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v164_RecJpsiPhotosSingle_idealquality/210903_020844/0001/globalcor_*.root");
-//   
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v166_Rec_idealquality/210907_054014/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v166_Rec_idealquality/210907_054014/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v166_RecJpsiPhotosSingle_idealquality/210907_053912/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v166_RecJpsiPhotosSingle_idealquality/210907_053912/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_Rec_idealquality/210910_175214/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_Rec_idealquality/210910_175214/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_RecJpsiPhotosSingle_idealquality/210910_175002/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_RecJpsiPhotosSingle_idealquality/210910_175002/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_Rec_quality_nobs_biasm10_biasfield/210914_224324/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_Rec_quality_nobs_biasm10_biasfield/210914_224324/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_RecJpsiPhotosSingle_quality_biasm10_biasfield/210914_224729/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_RecJpsiPhotosSingle_quality_biasm10_biasfield/210914_224729/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v181_Rec_quality_nobs_biasm10_biasfield/210916_041607/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v181_Rec_quality_nobs_biasm10_biasfield/210916_041607/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v181_RecJpsiPhotosSingle_quality_biasm10_biasfield/210916_041825/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v181_RecJpsiPhotosSingle_quality_biasm10_biasfield/210916_041825/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v182a_Rec_quality_nobs_biasm10_biasfield/210916_143343/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v182a_Rec_quality_nobs_biasm10_biasfield/210916_143343/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v182_RecJpsiPhotosSingle_quality_biasm10_biasfield/210916_143457/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v182_RecJpsiPhotosSingle_quality_biasm10_biasfield/210916_143457/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v184_Rec_quality_nobs_biasm10_biasfield/210917_172155/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v184_Rec_quality_nobs_biasm10_biasfield/210917_172155/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v184_RecJpsiPhotosSingle_quality_biasm10_biasfield/210917_172255/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v184_RecJpsiPhotosSingle_quality_biasm10_biasfield/210917_172255/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v186_Rec_quality_nobs_biasm10_biasfield/210918_204118/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v186_Rec_quality_nobs_biasm10_biasfield/210918_204118/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v186_RecJpsiPhotosSingle_quality_biasm10_biasfield/210918_204237/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v186_RecJpsiPhotosSingle_quality_biasm10_biasfield/210918_204237/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v188a_Rec_quality_nobs_biasm10/210921_055242/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v188a_Rec_quality_nobs_biasm10/210921_055242/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v188_RecJpsiPhotosSingle_quality_biasm10/210921_055336/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v188_RecJpsiPhotosSingle_quality_biasm10/210921_055336/0001/globalcor_*.root");
-    
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v193_Rec_quality_nobs/210924_134732/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v193_Rec_quality_nobs/210924_134732/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v193_RecJpsiPhotosSingle_quality/210924_134932/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v193_RecJpsiPhotosSingle_quality/210924_134932/0001/globalcor_*.root");
-//   
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v194_Rec_quality_nobs/210924_171803/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v194_Rec_quality_nobs/210924_171803/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v194_RecJpsiPhotosSingle_quality/210924_171919/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v194_RecJpsiPhotosSingle_quality/210924_171919/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v195_Rec_quality_nobs/210925_183152/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v195_Rec_quality_nobs/210925_183152/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v195_RecJpsiPhotosSingle_quality/210925_183505/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v195_RecJpsiPhotosSingle_quality/210925_183505/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v196_Rec_quality_nobs/210925_190459/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v196_Rec_quality_nobs/210925_190459/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v196_RecJpsiPhotosSingle_quality/210925_190615/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v196_RecJpsiPhotosSingle_quality/210925_190615/0001/globalcor_*.root");
-    
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v198a_Rec_quality_nobs/210927_160634/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v198a_Rec_quality_nobs/210927_160634/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v198_RecJpsiPhotosSingle_quality/210927_154536/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v198_RecJpsiPhotosSingle_quality/210927_154536/0001/globalcor_*.root");
-
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v199_Rec_quality_nobs/210929_185008/0000/*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v199_Rec_quality_nobs/210929_185008/0001/*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v199_RecJpsiPhotosSingle_quality/210929_185123/0000/*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v199_RecJpsiPhotosSingle_quality/210929_185123/0001/*.root");
-
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v200_Rec_quality_nobs/210929_190655/0000/*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v200_Rec_quality_nobs/210929_190655/0001/*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v200_RecJpsiPhotosSingle_quality/210929_190818/0000/*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v200_RecJpsiPhotosSingle_quality/210929_190818/0001/*.root");
-
-  chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_Rec_quality_nobs/210930_201957/0000/*.root");
-  chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_Rec_quality_nobs/210930_201957/0001/*.root");
-  chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_RecJpsiPhotosSingle_quality/210930_202326/0000/*.root");
-  chain.Add("/data/shared/muoncal/MuonGunUL2016_v202_RecJpsiPhotosSingle_quality/210930_202326/0001/*.root");
-
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v201_Rec_quality_nobs/210930_024550/0000/*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v201_Rec_quality_nobs/210930_024550/0001/*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v201_RecJpsiPhotosSingle_quality/210930_024706/0000/*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v201_RecJpsiPhotosSingle_quality/210930_024706/0001/*.root");
-
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v197_Rec_quality_nobs/210925_193619/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v197_Rec_quality_nobs/210925_193619/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v197_RecJpsiPhotosSingle_quality/210925_193736/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v197_RecJpsiPhotosSingle_quality/210925_193736/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v191_Rec_quality_nobs/210922_084249/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v191_Rec_quality_nobs/210922_084249/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v191_RecJpsiPhotosSingle_quality/210922_084454/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v191_RecJpsiPhotosSingle_quality/210922_084454/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v152_Rec_idealquality/210818_175414/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v152_RecJpsiPhotosSingle_idealquality/210818_175857/0000/globalcor_*.root");
   
 //   chain.Add("/data/shared/muoncal/MuonGunUL2016_v147_Rec_quality_nobs/210810_145350/0000/globalcor_*.root");
 //   chain.Add("/data/shared/muoncal/MuonGunUL2016_v147_Rec_quality_nobs/210810_145350/0001/globalcor_*.root");
@@ -267,13 +127,13 @@ void applycorrections() {
   
 //   gSystem->Setenv("XRD_REQUESTTIMEOUT","30");
   
-//   Eigen::initParallel();
-//   ROOT::EnableImplicitMT(32);
-  ROOT::EnableImplicitMT();
+  Eigen::initParallel();
+  ROOT::EnableImplicitMT(32);
 //   ROOT::TTreeProcessorMT::SetMaxTasksPerFilePerWorker(1);
 
   
-  TFile *fcor = TFile::Open("correctionResults.root");
+//   TFile *fcor = TFile::Open("correctionResults.root");
+  TFile *fcor = TFile::Open("correctionResultsdebug.root");
 //   TFile *fcor = TFile::Open("plotscale_v107_cor/correctionResults.root");
   
   
@@ -301,18 +161,32 @@ void applycorrections() {
     idxmap.push_back(idx);
   }
   
+  constexpr unsigned int ntoys = 100;
+  
   TTree *parmtree = static_cast<TTree*>(fcor->Get("parmtree"));
   
   float x;
+  float xreplicas[ntoys];
+  
   parmtree->SetBranchAddress("x", &x);
+  parmtree->SetBranchAddress("xreplicas", &xreplicas);
   
   std::vector<float> xout;
   xout.reserve(parmtree->GetEntries());
   
+  Eigen::MatrixXd xreplicasout = Eigen::MatrixXd::Zero(parmtree->GetEntries(), ntoys);
+  
   for (long long ientry=0; ientry < parmtree->GetEntries(); ++ientry) {
     parmtree->GetEntry(ientry);
     xout.push_back(x);
+    
+    xreplicasout.row(ientry) = Eigen::Map<const Eigen::Matrix<float, ntoys, 1>>(xreplicas).cast<double>();
   }
+  
+//   std::cout << "xreplicasout" << std::endl;
+//   std::cout << xreplicasout << std::endl;
+  
+//   assert(0);
   
 //   using Vector5f = Eigen::Matrix<float, 5, 1>;
 
@@ -344,6 +218,43 @@ void applycorrections() {
     
 //     corParmsEig = refParmsEig + jacRefEig*xtrk;
     corParmsEig = (refParmsEig.cast<double>() + jacRefEig.cast<double>()*xtrk.cast<double>()).cast<float>();
+    
+//     std::cout << "total diff = " << corParmsEig[0] - refParmsEig[0] << std::endl;
+    
+    return corParms;
+    
+  };
+  
+  auto correctParmsToys = [&xreplicasout, &idxmap, ntoys](ROOT::VecOps::RVec<float> const& refParms, ROOT::VecOps::RVec<float> const& jacRef, ROOT::VecOps::RVec<unsigned int> const& globalidxv) {
+    using Vector5f = Eigen::Matrix<float, 5, 1>;
+    
+    const unsigned int nparms = globalidxv.size();
+//     Eigen::VectorXf xtrk(nparms);
+    Eigen::MatrixXd xtrk(nparms, ntoys);
+    for (unsigned int i = 0; i < nparms; ++i) {
+      xtrk.row(i) = xreplicasout.row(idxmap[globalidxv[i]]);
+//       const unsigned int iidx = globalidxv[i];
+//       const float scale = iidx >=47916 ? std::sqrt(2.) : 1.;
+//       xtrk[i] = scale*xout[idxmap[iidx]];
+    }
+    
+
+    
+    const Eigen::Map<const Vector5f> refParmsEig(refParms.data());
+    const Eigen::Map<const Eigen::Matrix<float, 5, Eigen::Dynamic, Eigen::RowMajor>> jacRefEig(jacRef.data(), 5, nparms);
+
+//     std::cout << "qopref = " << refParms[0] << std::endl;
+//     for (unsigned int i = 0; i < nparms; ++i) {
+//       std::cout << "i = " << i << " xtrk[i] = " << xtrk[i] << " jacref(0,i) = " << jacRefEig(0,i) << " diff = " << jacRefEig(0,i)*xtrk[i] << std::endl;
+//     }
+    
+    std::array<float, 5*ntoys> corParms;
+    Eigen::Map<Eigen::Matrix<float, 5, ntoys, Eigen::ColMajor>> corParmsEig(corParms.data(), 5, ntoys);
+    
+//     corParmsEig = refParmsEig + jacRefEig*xtrk;
+    
+    corParmsEig = (refParmsEig.cast<double>()*Eigen::Matrix<double, 1, ntoys>::Ones() + jacRefEig.cast<double>()*xtrk).cast<float>();
+//     corParmsEig = (jacRefEig.cast<double>()*xtrk).cast<float>();
     
 //     std::cout << "total diff = " << corParmsEig[0] - refParmsEig[0] << std::endl;
     
@@ -471,12 +382,13 @@ void applycorrections() {
 //   auto da = d.Filter("genEta > 1.3 && genEta < 1.5");
   
   auto d2 = d.Define("corParms", correctParms, { "refParms", "jacrefv", "globalidxv" });
+  auto d3 = d2.Define("corParmsReplicas", correctParmsToys, { "refParms", "jacrefv", "globalidxv" });
   
 //   auto d3 = d2.Snapshot(treename, outfilename,  { "trackPt", "trackPtErr", "trackEta", "trackPhi", "trackCharge", "trackParms", "trackCov", "refParms", "refCov", "genParms", "genPt", "genEta", "genPhi", "genCharge", "run", "lumi", "event", "corParms" } );
   
   std::cout << "starting snapshot:" << std::endl;
 //     auto d3 = d2.Snapshot(treename, outfilename,  { "trackPt", "trackPtErr", "trackEta", "trackPhi", "trackCharge", "trackParms", "trackCov", "refParms", "refCov", "genParms", "genPt", "genEta", "genPhi", "genCharge", "corParms", "hitidxv", "nValidHits", "nValidPixelHits" } );
-    auto d3 = d2.Snapshot(treename, outfilename,  { "trackPt", "trackPtErr", "trackEta", "trackPhi", "trackCharge", "trackParms", "trackCov", "refParms", "refCov", "genParms", "genPt", "genEta", "genPhi", "genCharge", "corParms", "nValidHits", "nValidPixelHits" } );
+    auto d4 = d3.Snapshot(treename, outfilename,  { "trackPt", "trackPtErr", "trackEta", "trackPhi", "trackCharge", "trackParms", "trackCov", "refParms", "refCov", "genParms", "genPt", "genEta", "genPhi", "genCharge", "corParms", "nValidHits", "nValidPixelHits", "corParmsReplicas" } );
 
     
   std::cout << "done snapshot:" << std::endl;

@@ -67,10 +67,18 @@ int main() {
 //   const char* filenameinfo = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v32_Rec/210214_182643/0000/globalcor_0_1.root";
 //   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v33_Gen_idealquality/210307_155804/0000/globalcor_0_1.root";
 //     const char* filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v37_Gen_quality/210311_001434/0000/globalcor_0_1.root";
-    const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v39_Gen_quality/210403_232626/0000/globalcor_0_1.root";
+//     const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v107_GenJpsiPhotosSingle_quality/210719_142518/0000/globalcor_0_1.root";
+    
+    const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v148_RecJpsiPhotos_quality_constraint/210811_193709/0000/globalcor_0_1.root";
+    
+//     const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v124_Gen_quality/210729_121830/0000/globalcor_0_1.root";
+//     const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v61_Gen_quality/210505_074057/0000/globalcor_0_1.root";
 //   const char* filenameinfo = "/data/shared/muoncal/MuonGUNUL2016Fwd_v33_Gen_idealquality/210228_002318/0000/globalcor_0_1.root";
 
 
+// //     const std::string filenameresults = "correctionResults_iter0.root";
+//     const std::string filenameresults = "correctionResults_v107_gunfullpt.root";
+    const std::string filenameresults = "";
 
 
 //   const char* filenameinfo = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorGen_v29/200901_214453/0000/globalcorgen_100.root";
@@ -86,26 +94,70 @@ int main() {
   
   std::vector<int> parmtypes(nparms, -1);
   std::vector<int> subdets(nparms, -1);
+  std::vector<int> layers(nparms, -1);
+  std::vector<float> xis(nparms, -1.);
   
   unsigned int iidx;
   int parmtype;
   int subdet;
+  int layer;
+  float xi;
   runtree->SetBranchAddress("iidx", &iidx);
   runtree->SetBranchAddress("parmtype", &parmtype);
   runtree->SetBranchAddress("subdet", &subdet);
+  runtree->SetBranchAddress("layer", &layer);
+  runtree->SetBranchAddress("xi", &xi);
   for (unsigned int i=0; i<runtree->GetEntries(); ++i) {
     runtree->GetEntry(i);
     parmtypes[iidx] = parmtype;
     subdets[iidx] = subdet;
+    layers[iidx] = layer;
+    xis[iidx] = xi;
   }
   
   finfo->Close();
   
+  std::vector<float> oldres(nparms, 0.);
+  if (!filenameresults.empty()) {
+    TFile *fold = TFile::Open(filenameresults.c_str());
+    TTree *treeold = static_cast<TTree*>(fold->Get("parmtree"));
+    
+    float val;
+    treeold->SetBranchAddress("x", &val);
+    
+    for (unsigned int iparm = 0; iparm < nparms; ++iparm) {
+      treeold->GetEntry(iparm);
+      
+      float outval = val;
+//       if (parmtypes[iparm] == 7) {
+//         outval = std::max(val, -0.95f*xis[iparm]);
+//       }
+      
+      if (parmtypes[iparm] < 6) {
+        oldres[iparm] = -outval;
+      }
+        
+//       oldres[iparm] = outval;
+
+      std::cout << "iparm = " << iparm << " oldres = " << oldres[iparm] << std::endl;
+      
+    }
+    
+    fold->Close();
+  }
   
+  
+//   assert(0);
   
   GradHelper gradhelper(nparms);
   
   const std::string filename = "combinedgrads.root";
+//   const std::string filename = "combinedgrads_v61_gen.root";
+//   const std::string filename = "combinedgrads_v66_genfixed.root";
+  
+//   const std::string filename = "combinedgradsgen.root";
+//   const std::string filename = "combinedgrads_jpsi.root";
+  
 //   const std::string filename = "results_V33_01p567quality/combinedgrads.root";
   
 //   const std::string filename = "combinedgradsrec.root";
@@ -138,6 +190,18 @@ int main() {
   for (unsigned int i=0; i<parmtypes.size(); ++i) {
     const int parmtype = parmtypes[i];
     const int subdet = subdets[i];
+    const int layer = layers[i];
+    const float xi = xis[i];
+    
+    
+    std::cout << "i = " << i << " parmtype = " << parmtype << " before: grad = " << grad(i) << " hess = " << hess(i,i) << std::endl;
+
+    
+//     if (subdet == 0 && layer == 1) {
+//       hess.row(i) *= 0.;
+//       hess.col(i) *= 0.;
+//       grad[i] = 0.;
+//     }
     
 //     if (parmtype == 1 && (subdet == 2 || subdet == 3)) {
 //       hess.row(i) *= 0.;
@@ -185,7 +249,29 @@ int main() {
 //       hess(i,i) += 2.*1./pow(1e-4, 2);
 //     }
     
-    if (parmtype < 2) {
+    if (parmtype == 0) {
+      
+//       if (subdet > 3) {
+//         hess.row(i) *= 0.;
+//         hess.col(i) *= 0.;
+//         grad[i] = 0.;
+//       }
+      
+//       hess.row(i) *= 0.;
+//       hess.col(i) *= 0.;
+//       grad[i] = 0.; 
+      
+//       const double siga = 1e-1;
+      
+      const double siga = 5e-3;
+//       const double siga = 5e-4;
+//       const double siga = 1e-7;
+      
+//       hess(i,i) += 2.*1./pow(1e-1, 2);
+      grad(i) += 2.*oldres[i]/siga/siga;
+      hess(i,i) += 2./siga/siga;
+    }
+    else if (parmtype == 1) {
       // translation
 //       if (parmtype == 1 && subdet>1 && subdet<4) {
 //         hess.row(i) *= 0.;
@@ -197,7 +283,23 @@ int main() {
 //         hess.col(i) *= 0.;
 //         grad[i] = 0.; 
 //       }
-      hess(i,i) += 2.*1./pow(1e-1, 2);
+      
+//       hess.row(i) *= 0.;
+//       hess.col(i) *= 0.;
+//       grad[i] = 0.; 
+      
+//       const double siga = 1e-1;
+//       const double siga = 5e-3;
+      const double siga = subdet < 2 ? 5e-3 : 5e-1;
+      
+//       const double siga = 5e-4;
+      
+//       const double siga = 1e-7;
+      
+      grad(i) += 2.*oldres[i]/siga/siga;
+      hess(i,i) += 2./siga/siga;
+//       hess(i,i) += 2.*1./pow(1e-1, 2);
+//       hess(i,i) += 2.*1./pow(1e-2, 2);
     }
     else if (parmtype == 2) {
       //linearization is a bad approximation?
@@ -213,7 +315,16 @@ int main() {
 //         hess.col(i) *= 0.;
 //         grad[i] = 0.;
 //       }
-      hess(i,i) += 2.*1./pow(1e-1, 2);
+      
+//       hess.row(i) *= 0.;
+//       hess.col(i) *= 0.;
+//       grad[i] = 0.; 
+
+      const double siga = 1e-1;
+      grad(i) += 2.*oldres[i]/siga/siga;
+      hess(i,i) += 2./siga/siga;
+      
+//       hess(i,i) += 2.*1./pow(1e-1, 2);
     }
     else if (parmtype < 5) {
       // rotations out of plane
@@ -230,40 +341,141 @@ int main() {
 //         hess.col(i) *= 0.;
 //         grad[i] = 0.;
 //       }
-      hess(i,i) += 2.*1./pow(1e-2, 2);
+//       hess.row(i) *= 0.;
+//       hess.col(i) *= 0.;
+//       grad[i] = 0.; 
+      
+      const double siga = 1e-2;
+      grad(i) += 2.*oldres[i]/siga/siga;
+      hess(i,i) += 2./siga/siga;
+      
+//       hess(i,i) += 2.*1./pow(1e-2, 2);
     }    
     else if (parmtype < 6) {
       // rotation
       // 0.01 radians
 //       if (subdet > 1) {
-//       if (true) {
+//       if (subdet > 3) {
 //         hess.row(i) *= 0.;
 //         hess.col(i) *= 0.;
 //         grad[i] = 0.;
 //       }
-      hess(i,i) += 2.*1./pow(1e-2, 2);
+//       hess.row(i) *= 0.;
+//       hess.col(i) *= 0.;
+//       grad[i] = 0.; 
+      
+//       const double siga = 1e-2;
+      const double siga = 5e-3;
+//       const double siga = 5e-5;
+//       const double siga = 1e-9;
+      
+      
+      
+      grad(i) += 2.*oldres[i]/siga/siga;
+      hess(i,i) += 2./siga/siga;
+      
+
+//       hess(i,i) += 2.*1./pow(1e-2, 2);
     }
     else if (parmtype==6) {
       // b-field
+//       if (subdet < 2) {
+//         hess.row(i) *= 0.;
+//         hess.col(i) *= 0.;
+//         grad[i] = 0.; 
+//       }
+      
 //       hess.row(i) *= 0.;
 //       hess.col(i) *= 0.;
 //       grad[i] = 0.;
       
-      hess(i,i) += 2.*1./pow(0.2, 2);
+//       if (subdet==5) {
+//         hess.row(i) *= 0.;
+//         hess.col(i) *= 0.;
+//         grad[i] = 0.;
+//       }
+      
+//       const double sigb = 0.2;
+      //       const double sigb = 0.0038;
+
+      
+      
+      const double sigb = 0.038;
+      grad(i) += 2.*oldres[i]/sigb/sigb;
+      hess(i,i) += 2.*1./sigb/sigb;
+      
+//       const double sigb = 1e-6;
+//       grad(i) += -2.*0.038/sigb/sigb;
+//       hess(i,i) += 2.*1./sigb/sigb;
+      
+      
     }
     else if (parmtype==7) {
       // material
-//       hess.row(i) *= 0.;
-//       hess.col(i) *= 0.;
-//       grad[i] = 0.;
-      hess(i,i) += 2.*1./pow(1e-4, 2);
+//       if (subdet < 2 ) {
+//         hess.row(i) *= 0.;
+//         hess.col(i) *= 0.;
+//         grad[i] = 0.; 
+//       }
+
+//       if (subdet==5) {
+//         hess.row(i) *= 0.;
+//         hess.col(i) *= 0.;
+//         grad[i] = 0.;
+//       }
+      
+//         hess.row(i) *= 0.;
+//         hess.col(i) *= 0.;
+//         grad[i] = 0.;
+//       
+//       const double sigxi = 1e-5;
+//       const double sigxi = 1e-4;
+//       const double sigxi = 1e-2;
+//       const double sigxi = subdet < 2 ? 1e-3 : 0.5*xi;
+//       const double sigxi = 0.2*xi;
+//       const double sigxi = 2.0*xi;
+//       const double sigxi = 0.2*xi;
+      
+      
+      //"nominal" config
+//       const double sigxi = 2.0*xi;
+      const double sigxi = 1.0;
+//       const double sigxi = 1000.0;
+//       const double sigxi = 0.5*xi;
+//       const double sigxi = 0.1*xi;
+//       const double sigxi = 1e-2;
+
+      grad(i) += 2.*oldres[i]/sigxi/sigxi;
+      hess(i,i) += 2.*1./sigxi/sigxi;
+      
+      
+//       grad(i) += -2.*0.1/1e-4/1e-4;
+//       hess(i,i) += 2.*1./1e-4/1e-4;
+      
+//       hess(i,i) += 2.*1./pow(1e-4, 2);
     }
+    std::cout << "i = " << i << " parmtype = " << parmtype << " after:  grad = " << grad(i) << " hess = " << hess(i,i) << std::endl;
+
     
     
     
   }
   
-
+//   assert(0);
+  
+//   std::cout << "computing svd decomposition" << std::endl;
+// 
+//   BDCSVD<MatrixXd> svd(hess);
+//   std::cout << "singular values:" << std::endl;
+//   std::cout << svd.singularValues().transpose() << std::endl;
+  
+//   std::cout << "computing eigenvalues" << std::endl;
+//   SelfAdjointEigenSolver<MatrixXd> es(hess, EigenvaluesOnly);
+  
+//   std::cout << "eigenvalues:" << std::endl;
+//   std::cout << es.eigenvalues().transpose() << std::endl;
+  
+//   assert(false);
   
 //   std::cout << "convert to sparse" << std::endl;
 //   SparseMatrix<double> sparsehess = hess.sparseView();
@@ -286,15 +498,57 @@ int main() {
 //   
 // //   LDLT<Ref<MatrixXd>, Upper> hessd(hess);
 //   
+  
+  
   PartialPivLU<Ref<MatrixXd>> hessd(hess);
-//   
+   
   std::cout << "solving" << std::endl;
-//   
+
   VectorXd xout = -hessd.solve(grad);
   
   std::cout << "computing errors" << std::endl;
   
   VectorXd errs = 2./hess.diagonal().array().sqrt();
+  
+  
+//   constexpr unsigned int testsize = 10000;
+//   
+//   MatrixXd smallhess = hess.topLeftCorner<testsize,testsize>();
+//   const VectorXd smallgrad = grad.head<testsize>();
+//   
+//   PartialPivLU<Ref<MatrixXd>> hessd(smallhess);
+// //   LDLT<Ref<MatrixXd>, Upper> hessd(hess);
+// //   LLT<Ref<MatrixXd>, Upper> hessd(hess);
+//  
+//   
+//   
+//   std::cout << "solving" << std::endl;
+// 
+//   VectorXd xout = -hessd.solve(smallgrad);
+//   
+//   std::cout << "computing errors" << std::endl;
+// 
+//   MatrixXd cov = hessd.inverse();
+//   
+// //   MatrixXd cov = MatrixXd::Zero(hess.rows(), hess.cols());
+// //   
+// //   #pragma omp parallel for
+// //   for (unsigned int i = 0; i < hess.rows(); ++i) {
+// //     VectorXd onehot = VectorXd::Zero(hess.rows());
+// //     onehot[i] = 1.;
+// //     cov.col(i) = hessd.solve(onehot);
+// //   }
+// //   
+//   std::cout << "done computing errors" << std::endl;
+
+  
+//   const MatrixXd cov = hessd.solve(MatrixXd::Identity(testsize,testsize));
+  
+//   VectorXd errs = hessd.solve(MatrixXd::Identity(testsize,testsize)).diagonal().array().sqrt();
+  
+//   VectorXd errs = cov.diagonal().array().sqrt();
+  
+  
   
 //   VectorXd errs = std::sqrt(2.)*hessd.inverse().diagonal().array().sqrt();
 
@@ -304,7 +558,11 @@ int main() {
 //   
 //   return 0;
   
-  TFile *fout = TFile::Open("correctionResults.root","RECREATE");
+//   TFile *fout = TFile::Open("correctionResults.root","RECREATE");
+  TFile *fout = TFile::Open("correctionResultsdebug.root","RECREATE");
+  
+  
+//   TFile *fout = TFile::Open("correctionResultsgen.root","RECREATE");
   TTree *idxmaptree = new TTree("idxmaptree", "");
   
   unsigned int idx;
@@ -328,6 +586,12 @@ int main() {
   for (unsigned int i=0; i<nparms; ++i) {
     idx = i;
     x = xout[i];
+//     x = xout[i] + oldres[i];
+    
+    
+//     if (parmtypes[i] == 7) {
+//       x = std::max(x, -0.95f*xis[i]);
+//     }
     err = errs[i];
     parmtree->Fill();
   }

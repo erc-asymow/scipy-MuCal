@@ -29,6 +29,8 @@ imgtype = "png"
 #fname = "unbinnedfitglobaliter.npz"
 #fname = "unbinnedfitkforig.npz"
 fname = "unbinnedfitglobalitercorscale.npz"
+#fname = "/eos/cms/store/cmst3/group/wmass/bendavid/muoncalreduced/mctruthresults_v202_single_resparms/unbinnedfitglobalitercorscale.npz"
+fnamealt = "/eos/cms/store/cmst3/group/wmass/bendavid/muoncalreduced/mctruthresults_v207_zsingle_resparms/unbinnedfitglobalitercorscale.npz"
 fnamereplicas = "unbinnedfitglobalitercorscalereplicas.npz"
 
 #fname = "unbinnedfitglobalcortest.npz"
@@ -70,6 +72,18 @@ with np.load(fname) as f:
     xs = f["xs"]
     xerrs = f["xerrs"]
     covs = f["covs"]
+
+
+doalt = False
+
+if doalt:
+    with np.load(fnamealt) as f:
+        xsalt = f["xs"]
+        xerrsalt = f["xerrs"]
+        scalesigmamodelfinealt = f["scalesigmamodelfine"]
+        errsmodelfinealt = f["errsmodelfine"]
+        ksfinealt = f["ksfine"]
+        kcfinealt = 0.5*(ksfinealt[1:] + ksfinealt[:-1])
  
 
 etasc = 0.5*(etas[1:] + etas[:-1])
@@ -129,6 +143,12 @@ for iparm in range(xs.shape[1]):
     if doreplicas:
         rms = xrms[:, iparm]
         plt.fill_between(etasc,val-rms, val+rms, alpha=0.5)
+        
+    if doalt:
+        valalt = xsalt[:,iparm]
+        erralt = xerrsalt[:,iparm]
+        plt.errorbar(etasc, valalt, xerr=0.5*etasw, yerr=erralt,fmt='none',color="red")
+
 
     plot.savefig(f"{plotdir}/parm_{iparm}.{imgtype}")
 
@@ -199,6 +219,22 @@ for ieta in range(etasc.shape[0]):
     sigmamodelfinepluserr = errsmodelfine[ieta,1,:,1]
     sigmamodelfineminuserr = errsmodelfine[ieta,0,:,1]    
     
+    if doalt:
+        scalemodelfinealtplus = scalesigmamodelfinealt[ieta,1,:,0]
+        scalemodelfinealtminus = scalesigmamodelfinealt[ieta,0,:,0]
+        sigmamodelfinealtplus = scalesigmamodelfinealt[ieta,1,:,1]
+        sigmamodelfinealtminus = scalesigmamodelfinealt[ieta,0,:,1]
+        
+        scalemodelfinealtpluserr = errsmodelfinealt[ieta,1,:,0]
+        scalemodelfinealtminuserr = errsmodelfinealt[ieta,0,:,0]
+        sigmamodelfinealtpluserr = errsmodelfinealt[ieta,1,:,1]
+        sigmamodelfinealtminuserr = errsmodelfinealt[ieta,0,:,1]    
+        
+        sigmamodelfinealtpluserr = 2.*sigmamodelfinealtplus*scalemodelfinealtpluserr
+        sigmamodelfinealtminuserr = 2.*sigmamodelfinealtminus*scalemodelfinealtminuserr
+        sigmamodelfinealtplus = sigmamodelfinealtplus**2
+        sigmamodelfinealtminus = sigmamodelfinealtminus**2
+    
     
     #convert to sigma^2
     sigmabinnedpluserr = 2.*sigmabinnedplus*sigmabinnedpluserr
@@ -239,6 +275,11 @@ for ieta in range(etasc.shape[0]):
     plt.plot(kcfine, scalemodelfineplus-1.)
     plt.fill_between(-kcfine,scalemodelfineminus-scalemodelfineminuserr-1.,scalemodelfineminus+scalemodelfineminuserr-1., alpha=0.5)
     plt.plot(-kcfine, scalemodelfineminus-1.)
+    if doalt:
+        plt.fill_between(kcfinealt,scalemodelfinealtplus-scalemodelfinealtpluserr-1.,scalemodelfinealtplus+scalemodelfinealtpluserr-1., alpha=0.5)
+        plt.plot(kcfinealt, scalemodelfinealtplus-1.)
+        plt.fill_between(-kcfinealt,scalemodelfinealtminus-scalemodelfinealtminuserr-1.,scalemodelfinealtminus+scalemodelfinealtminuserr-1., alpha=0.5)
+        plt.plot(-kcfinealt, scalemodelfinealtminus-1.)
     plt.errorbar(ksplus,scalebinnedplus-1., xerr=xerrplus, yerr=scalebinnedpluserr,fmt='none')
     plt.errorbar(-ksminus,scalebinnedminus-1., xerr=-xerrminus, yerr=scalebinnedminuserr,fmt='none')
     plt.xlabel("$q\ k$ (GeV$^{-1}$)")
@@ -255,6 +296,11 @@ for ieta in range(etasc.shape[0]):
     plt.plot(1./kcfine, scalemodelfineplus-1.)
     plt.fill_between(-1./kcfine,scalemodelfineminus-scalemodelfineminuserr-1.,scalemodelfineminus+scalemodelfineminuserr-1., alpha=0.5)
     plt.plot(-1./kcfine, scalemodelfineminus-1.)
+    if doalt:
+        plt.fill_between(1./kcfinealt,scalemodelfinealtplus-scalemodelfinealtpluserr-1.,scalemodelfinealtplus+scalemodelfinealtpluserr-1., alpha=0.5)
+        plt.plot(1./kcfinealt, scalemodelfinealtplus-1.)
+        plt.fill_between(-1./kcfinealt,scalemodelfinealtminus-scalemodelfinealtminuserr-1.,scalemodelfinealtminus+scalemodelfinealtminuserr-1., alpha=0.5)
+        plt.plot(-1./kcfinealt, scalemodelfinealtminus-1.)
     plt.errorbar(1./ksplus,scalebinnedplus-1., xerr=xerrpluspt, yerr=scalebinnedpluserr,fmt='none')
     plt.errorbar(-1./ksminus,scalebinnedminus-1., xerr=-xerrminuspt, yerr=scalebinnedminuserr,fmt='none')
     plt.xlabel("$q\ p_T$ (GeV)")
@@ -274,6 +320,11 @@ for ieta in range(etasc.shape[0]):
         plt.plot(kcfine, sigmamodelfineplus)
         plt.fill_between(-kcfine,sigmamodelfineminus-sigmamodelfineminuserr,sigmamodelfineminus+sigmamodelfineminuserr, alpha=0.5)
         plt.plot(-kcfine, sigmamodelfineminus)
+        if doalt:
+            plt.fill_between(kcfinealt,sigmamodelfinealtplus-sigmamodelfinealtpluserr,sigmamodelfinealtplus+sigmamodelfinealtpluserr, alpha=0.5)
+            plt.plot(kcfinealt, sigmamodelfinealtplus)
+            plt.fill_between(-kcfinealt,sigmamodelfinealtminus-sigmamodelfinealtminuserr,sigmamodelfinealtminus+sigmamodelfinealtminuserr, alpha=0.5)
+            plt.plot(-kcfinealt, sigmamodelfinealtminus)
         plt.errorbar(ksplus,sigmabinnedplus, xerr=xerrplus, yerr=sigmabinnedpluserr,fmt='none')
         plt.errorbar(-ksminus,sigmabinnedminus, xerr=-xerrminus, yerr=sigmabinnedminuserr,fmt='none')
         plt.xlabel("$q\ k$ (GeV$^{-1}$)")
@@ -286,6 +337,11 @@ for ieta in range(etasc.shape[0]):
         plt.plot(1./kcfine, sigmamodelfineplus)
         plt.fill_between(-1./kcfine,sigmamodelfineminus-sigmamodelfineminuserr,sigmamodelfineminus+sigmamodelfineminuserr, alpha=0.5)
         plt.plot(-1./kcfine, sigmamodelfineminus)
+        if doalt:
+            plt.fill_between(1./kcfinealt,sigmamodelfinealtplus-sigmamodelfinealtpluserr,sigmamodelfinealtplus+sigmamodelfinealtpluserr, alpha=0.5)
+            plt.plot(1./kcfinealt, sigmamodelfinealtplus)
+            plt.fill_between(-1./kcfinealt,sigmamodelfinealtminus-sigmamodelfinealtminuserr,sigmamodelfinealtminus+sigmamodelfinealtminuserr, alpha=0.5)
+            plt.plot(-1./kcfinealt, sigmamodelfinealtminus)
         plt.errorbar(1./ksplus,sigmabinnedplus, xerr=xerrpluspt, yerr=sigmabinnedpluserr,fmt='none')
         plt.errorbar(-1./ksminus,sigmabinnedminus, xerr=-xerrminuspt, yerr=sigmabinnedminuserr,fmt='none')
         plt.xlabel("$q\ p_T$ (GeV)")

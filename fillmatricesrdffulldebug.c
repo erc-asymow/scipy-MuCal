@@ -4,15 +4,18 @@
 #include <ROOT/RDataFrame.hxx>
 #include "TFile.h"
 #include <ROOT/TTreeProcessorMT.hxx>
+#include <stdlib.h>  
 
 class GradHelper : public ROOT::Detail::RDF::RActionImpl<GradHelper> {
 
 public:
   using Result_t = std::vector<double>;
   
-  GradHelper(unsigned int nparms) : nparms_(nparms), grad_(new Result_t()) {}   
-  GradHelper(GradHelper && other) : nparms_(other.nparms_), grad_(other.grad_) {}
-  GradHelper(const GradHelper &other) : nparms_(other.nparms_), grad_(other.grad_) {}
+  GradHelper(unsigned int nparms) : nparms_(nparms), grad_(std::make_shared<Result_t>()) {}  
+//   GradHelper(unsigned int nparms, std::shared_ptr<Result_t> grad) : nparms_(nparms), grad_(grad) {}
+  GradHelper(GradHelper && other) = default;
+//   GradHelper(GradHelper && other) : nparms_(other.nparms_), grad_(other.grad_) {}
+//   GradHelper(const GradHelper &other) : nparms_(other.nparms_), grad_(other.grad_) {}
   
   std::shared_ptr<Result_t> GetResultPtr() const { return grad_; }
 
@@ -33,8 +36,10 @@ public:
     gradtmp_.clear();
     gradtmp_.resize(nslots, std::vector<double>(nparms_, 0.));
     
-    grad_->clear();
-    grad_->resize(nparms_, 0.);    
+    if (grad_->empty()) {
+      grad_->clear();
+      grad_->resize(nparms_, 0.);    
+    }
   }
 
     
@@ -65,9 +70,11 @@ public:
 //   using Result_t = std::vector<double>;
 //   using Data_t = std::vector<std::atomic<double> >;
   
-  HessHelper(unsigned int nparms) : nparms_(nparms), grad_(new Result_t()) {}   
-  HessHelper(HessHelper && other) : nparms_(other.nparms_), grad_(other.grad_) {}
-  HessHelper(const HessHelper &other) : nparms_(other.nparms_), grad_(other.grad_) {}
+  HessHelper(unsigned int nparms) : nparms_(nparms), grad_(std::make_shared<Result_t>()) {}   
+//   HessHelper(unsigned int nparms, std::shared_ptr<Result_t> grad) : nparms_(nparms), grad_(grad) {}
+  HessHelper(HessHelper && other) = default;
+//   HessHelper(HessHelper && other) : nparms_(other.nparms_), grad_(other.grad_) {}
+//   HessHelper(const HessHelper &other) : nparms_(other.nparms_), grad_(other.grad_) {}
   
   std::shared_ptr<Result_t> GetResultPtr() const { return grad_; }
 //   std::shared_ptr<Result_t> GetResultPtr() const { 
@@ -79,26 +86,27 @@ public:
     unsigned int k = 0;
     for (unsigned int i=0; i<idxs.size(); ++i) {
       const unsigned int& iidx = idxs[i];
-      const unsigned long long& ioffset = offsets_[iidx];
-      for (unsigned int j=i; j<idxs.size(); ++j) {
+      const unsigned long long ioffset = (unsigned long long)(iidx)*(unsigned long long)(nparms_);
+      for (unsigned int j=0; j<idxs.size(); ++j) {
         const unsigned int& jidx = idxs[j];
-        const unsigned long long& joffset = offsets_[jidx];
-        const unsigned long long idx = jidx >= iidx ? ioffset + jidx : joffset + iidx;
-
-//         if (iidx == jidx) {
-//           std::cout << "duplicate indices: iidx = " << iidx << ", jidx = " << jidx << " ioffset = " << ioffset << " joffset = " << joffset << std::endl;
-//         }
+        const unsigned long long idx = ioffset + (unsigned long long)(jidx);
         
-        const double diff = (iidx==jidx && i!=j) ? 2.*vec[k] : vec[k];
+//         std::cout << "vec.size() = " << vec.size() << " idxs.size = " << idxs.size() << std::endl;
+//         std::cout << "k = " << k << " iidx = " << iidx << " jidx = " << jidx << " ioffset = " << ioffset << " idx = " << idx << std::endl;
         
         std::atomic<double>& ref = (*grad_)[idx];
-//         const double& diff = vec[k];
+//         std::cout << "loaded atomic ref" << std::endl;
+        const double diff = vec[k];
+//         std::cout << "got diff" << std::endl;
         double old = ref.load();
+//         std::cout << "got old" << std::endl;
         double desired = old + diff;
+//         std::cout << "got desired" << std::endl;
         while (!ref.compare_exchange_weak(old, desired))
         {
             desired = old + diff;
         }
+//         std::cout << "done cmpx loop" << std::endl;
 //         if ((idxs[i]==15 && idxs[j]==61060) || idx==976960) {
 //           std::cout << "i: " << i << " j: " << j << " idxs[i]: " << idxs[i] << " idxs[j]: " << idxs[j] << " offset: " << offset << " idx: " << idx << " diff: " << diff << std::endl;          
 //         }
@@ -116,28 +124,20 @@ public:
     
 //     grad_ = std::shared_ptr<std::vector<double> >(new std::vector<double>());
     
-    offsets_.clear();
-    offsets_.reserve(nparms_);
+    const unsigned long long nparmsull = nparms_;
+    const unsigned long long nhess = nparmsull*nparmsull;
     
-    unsigned long long k = 0;
-    for (unsigned int i = 0; i < nparms_; ++i) {
-      offsets_.push_back(k - i);
-      k += nparms_ - i;
-    }
-    
-    std::cout << "offsets_[15]: " << offsets_[15] << " offsets_[16]: " << offsets_[16] << std::endl;
-    
-    unsigned long long nsym = nparms_*(nparms_+1)/2;
-    
-    std::cout<< "allocating huge atomic double vector of size " << nsym << std::endl;
+    if (grad_->empty()) {
+      std::cout<< "allocating huge atomic double vector of size " << nhess << std::endl;
 
-    std::vector<std::atomic<double> > tmp(nsym);
-    grad_->swap(tmp);
-    std::cout<< "initializing values" << std::endl;
-    for (unsigned long long i=0; i<grad_->size(); ++i) {
-      (*grad_)[i] = 0.;
+      std::vector<std::atomic<double> > tmp(nhess);
+      grad_->swap(tmp);
+      std::cout<< "initializing values" << std::endl;
+      for (unsigned long long i=0; i<grad_->size(); ++i) {
+        (*grad_)[i] = 0.;
+      }
+      std::cout<< "done huge vector" << std::endl;
     }
-    std::cout<< "done huge vector" << std::endl;
     timestamp_ = std::chrono::steady_clock::now();
   }
 
@@ -173,7 +173,7 @@ private:
 //   std::unique_ptr<std::atomic<double>[]> gradatom_;
 //   std::atomic<double>* gradatom_;
 //   std::vector<std::vector<unsigned long long> > tmpidxs_;
-  std::vector<unsigned long long> offsets_;
+//   std::vector<unsigned long long> offsets_;
   std::chrono::steady_clock::time_point timestamp_;
 };
 
@@ -200,23 +200,27 @@ float maxelementhess(ROOT::VecOps::RVec<float> const& vec) {
       maxval = absval;
     }
   }
-//   if (maxval > 1e8) {
-//     std::cout << "maxvalhess = " << maxval << std::endl;
-//   }
+  if (maxval > 1e8) {
+    std::cout << "maxvalhess = " << maxval << std::endl;
+  }
   return maxval;
 }
 
 bool valid(ROOT::VecOps::RVec<float> const& vec) {
-  for (unsigned long long i=0; i<vec.size(); ++i) {
-    if (std::isnan(vec[i]) || std::isinf(vec[i])) {
-      printf("invalid\n");
+//   for (unsigned long long i=0; i<vec.size(); ++i) {
+//     if (std::isnan(vec[i]) || std::isinf(vec[i])) {
+//       return false;
+//     }
+//   }
+  for (auto val : vec) {
+    if (std::isnan(val) || std::isinf(val)) {
       return false;
     }
   }
   return true;
 }
 
-void fillmatricesrdf() {
+void fillmatricesrdffulldebug() {
     
 //   std::atomic<double> t;
 //   std::cout<< "is lock free: " << t.is_lock_free() << std::endl;
@@ -224,6 +228,7 @@ void fillmatricesrdf() {
   
 //   std::cout << ROOT::GetImplicitMTPoolSize() << std::endl;
 
+  setenv("XRD_PARALLELEVTLOOP", "16", true);
   
   ROOT::EnableImplicitMT();
 //   ROOT::TTreeProcessorMT::SetMaxTasksPerFilePerWorker(1);
@@ -250,79 +255,45 @@ void fillmatricesrdf() {
 //   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v38_Gen_quality/210403_232146/0000/globalcor_0_1.root";
 //   std::string filename = "/data/shared/muoncal/MuonGunUL2016_v38_Gen_quality/210403_232146/0000/globalcor_*.root";
   
-//   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v49_Gen_quality/210418_160909/0000/globalcor_0_1.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v49_Gen_quality/210418_160909/0000/globalcor_*.root";
-
-//   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v52_GenJpsiPhotosSingle_quality/210427_135118/0000/globalcor_0_10.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v52_GenJpsiPhotosSingle_quality/210427_135118/0000/globalcor_*.root";
+//   const char* filenameinfo = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v45_Rec_quality_bs_v2/210411_194557/0000/globalcor_0_10.root";
+//   const std::string filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v45_Rec_quality_bs_v2/210411_194557/0000/globalcor_*.root";
+//   const std::string filename = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/DoubleMuonGun_Pt3To150/MuonGunUL2016_v45_Rec_quality_bs_v2/210411_194557/0000/globalcor_0_10.root";
+//   const std::string filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v45_Rec_quality_bs_v2/210411_194557/0000/globalcor_0_10.root";
+//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v45_Rec_quality_bs_v2/210411_194557/0000/globalcor_*.root";
   
-  const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v171_RecJpsiPhotos_idealquality_constraint/210911_050035/0000/globalcor_0_1.root";
+//   const std::string filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v63_Rec_quality_bs/210507_003108/0000/globalcor_0_1.root";
+//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v63_Rec_quality_bs/210507_003108/0000/globalcor_*.root";
   
-//   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v124_Gen_quality/210729_121830/0000/globalcor_0_1.root";
+  const std::string filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v66_Gen_quality/210509_200135/0000/globalcor_0_1.root";
 //   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v66_Gen_quality/210509_200135/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v84_GenJpsiPhotosSingle_quality/210707_164413/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v87_GenJpsiPhotosSingle_quality/210709_013410/0000/globalcor_*.root"; 
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v88_GenJpsiPhotosSingle_quality/210709_112740/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v90_GenJpsiPhotosSingle_quality/210711_155706/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v92_GenJpsiPhotosSingle_quality/210712_163802/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v93_GenJpsiPhotosSingle_quality/210712_211558/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v94_GenJpsiPhotosSingle_quality/210713_193146/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v97_GenJpsiPhotosSingle_quality/210714_153627/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v98_GenJpsiPhotosSingle_quality/210715_163608/0000/globalcor_*.root";
+  const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v95_GenJpsiPhotosSingle_quality/210714_001419/0000/globalcor_*.root";
   
-  TChain chain("tree");
+//   const std::string filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v45_Rec_quality_nobs_v2/210413_084740/0000/globalcor_0_1.root";
+//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v45_Rec_quality_nobs_v2/210413_084740/0000/globalcor_*.root";
+//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v45_Rec_quality_nobs_v2/210413_084740/0000/globalcor_0_1.root";
   
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v107_GenJpsiPhotosSingle_quality/210719_142518/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v107_GenJpsiPhotosSingle_quality/210719_142518/0001/globalcor_*.root");
-//   
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v123_Gen_quality/210728_174037/0000/globalcor_0_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v123_Gen_quality/210728_174037/0001/globalcor_0_*.root");
+//   const std::string filenamejpsi = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/JPsiToMuMuGun_Pt5To30-pythia8-photos/MuonGunUL2016_v45_RecJpsiPhotos_quality_constraint_v2/210411_195122/0000/globalcor_*.root ";
+//   const std::string filenamejpsi = "root://eoscms.cern.ch//store/cmst3/group/wmass/bendavid/muoncal/JPsiToMuMuGun_Pt5To30-pythia8-photos/MuonGunUL2016_v45_RecJpsiPhotos_quality_constraint_v2/210411_195122/0000/globalcor_0_10.root ";
+//   const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v48_RecJpsiPhotos_quality_constraint/210414_072114/0000/globalcor_*.root";
+//   const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v49_RecJpsiPhotos_quality_constraint/210418_112257/0000/globalcor_*.root";
+//   const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v50_RecJpsiPhotos_quality_constraint/210421_161515/0000/globalcor_*.root";
+//   const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v51_RecJpsiPhotos_quality_constraint/210424_105652/0000/globalcor_*.root";
+//   const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v52_RecJpsiPhotos_quality_constraint/210424_221459/0000/globalcor_*.root";
+//   const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v52_GenJpsiPhotos_quality/210426_215703/0000/globalcor_*.root";
+//   const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v53_GenJpsiPhotos_quality/210428_111554/0000/globalcor_*.root";
+//   const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v64_RecJpsiPhotos_quality_constraint/210508_125028/0000/globalcor_*.root";
+//   const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v66_RecJpsiPhotos_quality_constraint/210509_200735/0000/globalcor_*.root";
+//     const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v66_GenJpsiPhotos_quality/210510_204631/0000/globalcor_*.root";
     
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_Gen_idealquality/210913_032945/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_Gen_idealquality/210913_032945/0001/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_GenJpsiPhotosSingle_idealquality/210913_032642/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v171_GenJpsiPhotosSingle_idealquality/210913_032642/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v177_Gen_idealquality/210913_173054/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v177_Gen_idealquality/210913_173054/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v178_Gen_idealquality/210913_233157/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v178_Gen_idealquality/210913_233157/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v179_Gen_idealquality/210914_061000/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v179_Gen_idealquality/210914_061000/0001/globalcor_*.root");
-  
-  chain.Add("/data/shared/muoncal/MuonGunUL2016_v180_Gen_idealquality/210914_085915/0000/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v124_Gen_quality/210729_121830/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v124_Gen_quality/210729_121830/0001/globalcor_*.root");
-  
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v124_GenJpsiPhotosSingle_quality/210729_122907/0000/globalcor_*.root");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v124_GenJpsiPhotosSingle_quality/210729_122907/0001/globalcor_*.root");
-  
-  
-  
-//   TChain chain("tree");
-//   chain.Add("/data/shared/muoncal/MuonGunUL2016_v97_GenJpsiPhotosSingle_quality/210714_153627/0000/globalcor_*.root");
-  
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v77_Gen_quality/210702_084729/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v79_Gen_quality/210702_093452/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v80_Gen_quality/210702_160632/0000/globalcor_*.root";
-  
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v76_Gen_quality/210629_144601/0000/globalcor_*.root";
-  
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v66_GenJpsiPhotosSingle_quality/210511_004433/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v68_Gen_quality/210621_142917/0000/globalcor_*.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v69_Gen_quality/210621_181450/0000/globalcor_*.root";
-  
-//   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v61_Gen_quality/210505_074057/0000/globalcor_0_1.root";
-//   const std::string filename = "/data/shared/muoncal/MuonGunUL2016_v61_Gen_quality/210505_074057/0000/globalcor_*.root";
+//     const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v66_GenJpsiPhotos_quality/210510_204631/0000/globalcor_*.root";  
+//     const std::string filenamejpsi = "/data/home/bendavid/muonscale/CMSSW_10_6_17_patch1/work/globalcor_0.root";  
+//   const std::string filenamejpsi = "/data/shared/muoncal/MuonGunUL2016_v60_RecJpsiPhotos_quality_constraint/210430_223931/0000/globalcor_*.root";
   
 //   const char* filenameinfo = "/data/shared/muoncal/MuonGunUL2016_v30_Gen210206_025446/0000/globalcor_0_1.root";
   
 //   const char* filenameinfo = "/data/bendavid/muoncaldatalarge/MuonGunGlobalCorRec_v28/200829_122617/0000/globalcor_1.root";
 
-  TFile *finfo = TFile::Open(filenameinfo);
+  TFile *finfo = TFile::Open(filenameinfo.c_str());
 //   TTree *runtree = static_cast<TTree*>(finfo->Get("tree"));
 //   TTree *runtree = static_cast<TTree*>(finfo->Get("globalCorGen/runtree"));
 //   TTree *runtree = static_cast<TTree*>(finfo->Get("globalCor/runtree"));
@@ -354,23 +325,15 @@ void fillmatricesrdf() {
   GradHelper gradhelper(nparms);
   HessHelper hesshelper(nparms);
   
-//   ROOT::RDataFrame d(treename, filename);
-  ROOT::RDataFrame d(chain);
+  ROOT::RDataFrame d(treename, filename);
   
 //   auto d2 = d.Filter("genPt > 5.5 && abs(genEta)<2.4");
 //   auto d2 = d.Filter("genPt > 5.5");
 //   auto d2 = d.Filter("genPt > 5.5 && nValidHits > 9 && nValidPixelHits > 0 && trackCharge*trackPt/genPt/genCharge > 0.3");
   
-//   auto d2 = d.Filter("genPt > 5.5 && nValidHits > 9 && nValidPixelHits > 0");
-  auto d2 = d.Filter("genPt > 3.5 && nValidHits > 3 && nValidPixelHits > 0 && genPt < 150. && Sum(dxsimgen == -99.) == 0");
-  
-//   auto d2 = d.Filter("genPt > 2.0 && nValidHits > 3 && nValidPixelHits > 0 && genPt < 150.");
-  
-//   auto d2 = d.Filter("genPt > 3.5 && nValidHits > 2 && nValidPixelHits > 0 && genPt < 150. && Sum(dxsimgen == -99.) == 0 && genEta>1.3 && genEta<1.5");
-//   auto d2 = d.Filter("genPt > 3.5 && nValidHits > 2 && nValidPixelHits > 0 && genPt < 50.");
-//   auto d2 = d.Filter("genPt > 3.5 && nValidHits > 2 && nValidPixelHits > 0");
-//   auto d2 = d.Filter("genPt > 30. && nValidHits > 9 && nValidPixelHits > 0");
-//   auto d2 = d.Filter("genPt > 5.5");
+  auto d2a = d.Define("refPt", "std::abs(1./refParms[0])*std::sin(M_PI_2 - refParms[1])");
+  auto d2b = d2a.Define("refEta", "-std::log(std::tan(0.5*(M_PI_2 - refParms[1])))");
+  auto d2 = d2b.Filter("genPt > 3.5 && nValidHits > 2 && nValidPixelHits > 0 && genPt < 150. && Sum(dxsimgen == -99.) == 0");
 //   auto d2 = d.Filter("genPt > 5.5 && nValidHitsFinal > 9 && nValidPixelHitsFinal > 0");
 //   auto d2 = d.Filter("genPt > 5.5 && nValidHits > 9 && nValidPixelHits > 0");
 //   auto d2 = d.Filter("genPt > 5.5 && nValidHits > 9 && nValidPixelHits > 0 && genEta>-2.4 && genEta<-2.3");
@@ -380,28 +343,26 @@ void fillmatricesrdf() {
 //   auto d3 = d.Define("gradmax", "maxelement(gradv)");
 //   auto d3 = d2.Filter("maxelement(gradv) < 1e5 && maxelementhess(hesspackedv)<1e8");
 //   auto d3 = d2.Filter("maxelement(gradv) < 1e5");
-//   auto d3 = d2.Filter("maxelement(gradv) < 1e5");
-//   auto d3 = d2.Filter("maxelement(gradv) < 1e5 && valid(gradv) && valid(hesspackedv) && edmval < 1e-3");
-  auto d3 = d2.Filter("maxelement(gradv) < 1e5 && valid(gradv) && valid(hesspackedv) && edmval < 1e-5");
-//   auto d3 = d2.Filter("valid(gradv) && valid(hesspackedv) && edmval < 1e-5");
-//   auto d3 = d2.Filter("maxelement(gradv) < 1e5 && valid(gradv) && valid(hesspackedv) && edmval < 0.2");
+  auto d3 = d2.Filter("maxelement(gradv) < 1e5 && valid(gradv) && valid(hessv) && edmval < 1e-3");
+//   auto d3 = d2.Filter("maxelement(gradv) < 1e5 && valid(gradv) && valid(hesspackedv)");
 //   auto d3 = d2.Filter("true");
 //   auto d3 = d2.Filter("maxelement(gradv) < 1e5 && valid(gradv) && valid(hesspackedv) && maxelementhess(hesspackedv)<1e8");
-   
+  
+  
   
   auto grad = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(gradhelper), {"gradv", "globalidxv"});
-  auto hess = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(hesshelper), {"hesspackedv", "globalidxv"});
+  auto hess = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(hesshelper), {"hessv", "globalidxv"});
   
-  auto gradcounts = d3.Histo1D({"gradcounts", "", int(nparms), -0.5, double(nparms)-0.5}, "globalidxv");
-
-  std::cout << (*grad)[0] << std::endl;
-  std::cout << (*hess)[0] << std::endl;
-
+//   auto grad0 = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(gradhelper), {"gradv", "globalidxv"});
+//   auto hess0 = d3.Book<ROOT::VecOps::RVec<float>,  ROOT::VecOps::RVec<unsigned int> >(std::move(hesshelper), {"hesspackedv", "globalidxv"});
+// //   
+// //   auto gradcounts = d3.Histo1D({"gradcounts", "", int(nparms), -0.5, double(nparms)-0.5}, "globalidxv");
+// // 
+//   std::cout << (*grad0)[0] << std::endl;
+//   std::cout << (*hess0)[0] << std::endl;
+  
   TFile *fgrads = new TFile("combinedgrads.root", "RECREATE");
-//   TFile *fgrads = new TFile("combinedgradsdebug.root", "RECREATE");
-//   TFile *fgrads = new TFile("combinedgrads_v61_gen.root", "RECREATE");
-//   TFile *fgrads = new TFile("combinedgrads_v66_genfixed.root", "RECREATE");
-//   TFile *fgrads = new TFile("combinedgradsgen.root", "RECREATE");
+//   TFile *fgrads = new TFile("combinedgradsdebugfull.root", "RECREATE");
   TTree *tree = new TTree("tree", "");
   
   unsigned int idx;
@@ -430,22 +391,22 @@ void fillmatricesrdf() {
     gradelem = (*grad)[i];
 //     hessrow.clear();
 //     hessrow.resize(nparms, 0.);
-    const unsigned long long& offset = offsets[i];
-    for (unsigned int j = 0; j < i; ++j) {
-      hessrow[j] = 0.;
-    }
-    for (unsigned int j = i; j < nparms; ++j) {
-      const unsigned long long idx = offset + j;
+    const unsigned long long offset = (unsigned long long)(i)*(unsigned long long)(nparms);
+//     for (unsigned int j = 0; j < i; ++j) {
+//       hessrow[j] = 0.;
+//     }
+    for (unsigned int j = 0; j < nparms; ++j) {
+      const unsigned long long idx = offset + (unsigned long long)(j);
       hessrow[j] = (*hess)[idx];
-      if ((i==15 && j==61060) || idx==976960) {
-        std::cout << "i: " << i << " j: " << j << " offset: " << offset << " idx: " << idx << " val: " << (*hess)[idx] << std::endl;
-      }
+//       if ((i==15 && j==61060) || idx==976960) {
+//         std::cout << "i: " << i << " j: " << j << " offset: " << offset << " idx: " << idx << " val: " << (*hess)[idx] << std::endl;
+//       }
     }
     tree->Fill();
   }
   
   tree->Write();
-  gradcounts->Write();
+//   gradcounts->Write();
   fgrads->Close();
     
 }

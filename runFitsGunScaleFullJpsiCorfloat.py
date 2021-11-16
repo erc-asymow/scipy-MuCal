@@ -233,8 +233,10 @@ chain = ROOT.TChain("tree");
 #chain.Add("/data/shared/muoncal/MuonGunUL2016_v171a_RecJpsiPhotos_quality_constraintfsr28_biasm10_biasfield_iter0/210915_064129/0000/globalcor_*.root");
 #chain.Add("/data/shared/muoncal/MuonGunUL2016_v171a_RecJpsiPhotos_quality_constraintfsr28_biasm10_biasfield_iter0/210915_064129/0001/globalcor_*.root");
 
-chain.Add("/data/shared/muoncal/MuonGunUL2016_v207a_RecJpsiPhotos_quality_constraintfsr29/211013_161309/0000/*.root")
-chain.Add("/data/shared/muoncal/MuonGunUL2016_v207a_RecJpsiPhotos_quality_constraintfsr29/211013_161309/0001/*.root")
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v207a_RecJpsiPhotos_quality_constraintfsr29/211013_161309/0000/*.root")
+#chain.Add("/data/shared/muoncal/MuonGunUL2016_v207a_RecJpsiPhotos_quality_constraintfsr29/211013_161309/0001/*.root")
+chain.Add("/data/shared/muoncal/MuonGunUL2016_v208_RecZMuMu_quality_nobs/211014_121741/0000/*.root")
+chain.Add("/data/shared/muoncal/MuonGunUL2016_v208_RecZMuMu_quality_nobs/211014_121741/0001/*.root")
 
 #filename = "/data/shared/muoncal/MuonGunUL2016_v45_RecJpsiPhotos_quality_constraint_v2/210411_195122/0000/globalcor_*.root"
 #filename = "/data/shared/muoncal/MuonGunUL2016_v48_RecJpsiPhotos_quality_constraint/210414_072114/0000/globalcor_*.root"
@@ -244,9 +246,15 @@ chain.Add("/data/shared/muoncal/MuonGunUL2016_v207a_RecJpsiPhotos_quality_constr
 
 
 
+#fcorsingle = "/eos/cms/store/cmst3/group/wmass/bendavid/muoncalreduced/mctruthresults_v202_single_resparms/unbinnedfitglobalitercorscale.npz"
 
 
+#with np.load(fcorsingle) as f:
+    #xspre = f["xs"]
 
+
+#print(xs.shape)
+#assert(0)
 
 #filename = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v1_Gen/201116_000843/0000/globalcor_*.root"
 #filenameinfo = "root://eoscms.cern.ch//store/group/phys_smp/bendavid/DoubleMuonGun_Pt3To150/MuonGunUL2016_v1_Gen/201116_000843/0000/globalcor_0_1.root"
@@ -335,8 +343,9 @@ def scale(A,e,M,k,q):
     return 1. + A + q*M/k - e*k
     #return q*k*A + e*k**2 + M + q*R
 
-def sigmasq(a, c, k):
-    return a + c/k**2
+def sigmasq(a, c, b, d, k):
+    return a + c/k**2 + b/(1. + d**2*k**2)
+    #return a + c/k**2 + b/(1. + d*k**2)
     #return c + a*k**2
 
 def scalesigma(parms, qs, ks):
@@ -345,18 +354,51 @@ def scalesigma(parms, qs, ks):
     M = parms[..., 2, np.newaxis, np.newaxis]
     a = parms[..., 3, np.newaxis, np.newaxis]
     c = parms[..., 4, np.newaxis, np.newaxis]
+    b = parms[..., 5, np.newaxis, np.newaxis]
+    d = parms[..., 6, np.newaxis, np.newaxis]
+    #d = xspre[..., 6, np.newaxis, np.newaxis]
+    
+    #a = a**2
+    #c = c**2
+    
+    print("b.shape", b.shape)
+    print("d.shape", d.shape)
     
     qs = qs[np.newaxis, :, np.newaxis]
     ks = ks[np.newaxis, np.newaxis, :]
     
     scaleout = scale(A,e,M,ks,qs)
-    sigmasqout = sigmasq(a,c,ks)
+    sigmasqout = sigmasq(a,c,b,d,ks)
     sigmaout = np.sqrt(sigmasqout)
     sigmaout = np.ones_like(qs)*sigmaout
     
     return np.stack([scaleout, sigmaout], axis=-1)
 
+#def scalesigmaone(parms, qs, ks):
+    #A = parms[..., 0, np.newaxis, np.newaxis]
+    #e = parms[..., 1, np.newaxis, np.newaxis]
+    #M = parms[..., 2, np.newaxis, np.newaxis]
+    #a = parms[..., 3, np.newaxis, np.newaxis]
+    #c = parms[..., 4, np.newaxis, np.newaxis]
+    #b = parms[..., 5, np.newaxis, np.newaxis]
+    #d = parms[..., 6, np.newaxis, np.newaxis]
+    ##d = xspre[..., 6, np.newaxis, np.newaxis]
+    
+    #print("b.shape", b.shape)
+    #print("d.shape", d.shape)
+    
+    #qs = qs[np.newaxis, :, np.newaxis]
+    #ks = ks[np.newaxis, np.newaxis, :]
+    
+    #scaleout = scale(A,e,M,ks,qs)
+    #sigmasqout = sigmasq(a,c,b,d,ks)
+    #sigmaout = np.sqrt(sigmasqout)
+    #sigmaout = np.ones_like(qs)*sigmaout
+    
+    #return np.stack([scaleout, sigmaout], axis=-1)
+
 jacscalesigma = jax.jit(jax.jacfwd(lambda *args: scalesigma(*args).flatten()))
+#jacscalesigma = jax.jit(jax.jacfwd(lambda *args: scalesigmaone(*args).flatten()))
 
 def nllbinnedmodel(parms, dataset, qs, ks, krs):
     #A = parms[..., 0, np.newaxis, np.newaxis, np.newaxis]
@@ -399,11 +441,20 @@ d = ROOT.ROOT.RDataFrame(chain)
 #d = d.Define("dx", "dxrecsim")
 #d = d.Define("dx", "dyrecsim")
 
-ptmin = 3.5
+#ptmin = 3.5
+
+#ptmin = 5.5
+ptmin = 10.0
 
 #cut = "genPt > 5.5 && genPt < 150. && nValidHits > 0"
 #d = d.Filter("Muplusgen_pt > 5.5 && Muminusgen_pt > 5.5 && Jpsigen_mass > 3.0968")
 d = d.Filter(f"Muplusgen_pt > {ptmin} && Muminusgen_pt > {ptmin}")
+
+
+d = d.Filter("Muplus_muonMedium && Muminus_muonMedium")
+
+d = d.Filter("Jpsigen_mass > 60. && Jpsigen_mass < 120.")
+
 
 #d = d.Filter("Jpsikin_mass > 2.8 && Jpsikin_mass < 3.4")
 
@@ -521,13 +572,15 @@ ks = onp.linspace(1./20., 1./ptmin, nkbins+1, dtype=np.float64)
 #nptbins = 40
 #ks = 1./onp.linspace(150., 5.5, nptbins+1, dtype=np.float64)
 
-ptmax = 30.
+#ptmax = 30.
+#ptmax = 50.
+ptmax = 150.
 
 nptbins = 25
 pts = 1./onp.linspace(ptmax, 20., nptbins+1, dtype=np.float64)
 
-#ks = onp.concatenate((pts,ks[1:]),axis=0)
-ks = ks
+ks = onp.concatenate((pts,ks[1:]),axis=0)
+#ks = ks
 
 #nkbins = 40
 #ks = 1./onp.linspace(150.,33.,nkbins+1, dtype=np.float64)
@@ -672,9 +725,12 @@ hdset = dxsimgen
 #print(hdset.shape)
 #assert(0)
 
+doFit = True
 
 #xbinned = pmin(fgbinned, xbinned, (hdset,qrs), jac=True, h=None, edmtol = 1e-3, reqposdef = False)
-xbinned = pmin(fgbinned, xbinned, (hdset,qrs), jac=True, h=hbinned, edmtol = 1e-5)
+
+if doFit:
+    xbinned = pmin(fgbinned, xbinned, (hdset,qrs), jac=True, h=hbinned, edmtol = 1e-5)
 
 hessbinned = hbinned(xbinned, hdset, qrs)
 covbinned = np.linalg.inv(hessbinned)
@@ -703,11 +759,17 @@ hbinnedmodel = jax.jit(hbinnedmodel)
 parmscale = np.zeros((nEtaBins, 3), dtype=np.float64)
 parmsigma0 = 1e-4*np.ones((nEtaBins, 1), dtype=np.float64)
 parmsigma1 = 1e-8*np.ones((nEtaBins, 1), dtype=np.float64)
+parmsigma2 = 1e-8*np.ones((nEtaBins, 1), dtype=np.float64)
+parmsigma3 = 100.*np.ones((nEtaBins, 1), dtype=np.float64)
 
-parmsmodel = np.concatenate([parmscale, parmsigma0, parmsigma1], axis=-1)
+#parmsmodel = np.concatenate([parmscale, parmsigma0, parmsigma1], axis=-1)
+parmsmodel = np.concatenate([parmscale, parmsigma0, parmsigma1, parmsigma2, parmsigma3], axis=-1)
+#parmsmodel = np.concatenate([parmscale, parmsigma0, parmsigma1, parmsigma2], axis=-1)
 
 #parmsmodel = pmin(fgbinnedmodel, parmsmodel, (hdset,qcs, kcs, qrs), jac=True, h=None, edmtol = 1e-3, reqposdef = False)
-parmsmodel = pmin(fgbinnedmodel, parmsmodel, (hdset,qcs, kcs, qrs), jac=True, h=hbinnedmodel, edmtol = 1e-5)
+
+if doFit:
+    parmsmodel = pmin(fgbinnedmodel, parmsmodel, (hdset,qcs, kcs, qrs), jac=True, h=hbinnedmodel, edmtol = 1e-2)
 
 x = parmsmodel
 
@@ -719,7 +781,14 @@ scalesigmamodelfine = scalesigma(x, qcs, kcsfine)
 
 errsmodelfines = []
 
+#covmodel = onp.zeros((48,7,7),dtype=np.float64)
+#covmodel[:,:6,:6] = cov
+
 for i in range(nEtaBins):
+    #print(x[i:,i+1].shape)
+    #print(xspre[i:i+1,6:7].shape)
+    #xi = onp.concatenate((x[i:i+1],xspre[i:i+1,6:7]), axis=-1)
+    #jacmodelfine = jacscalesigma(xi, qcs, kcsfine)
     jacmodelfine = jacscalesigma(x[i:i+1], qcs, kcsfine)
     jacmodelfine = np.swapaxes(jacmodelfine, 0, 1)
     jacmodelfineT = np.swapaxes(jacmodelfine, -1,-2)
@@ -727,6 +796,7 @@ for i in range(nEtaBins):
     print(jacmodelfineT.shape)
     print(cov.shape)
     covmodelfine = np.matmul(jacmodelfine,np.matmul(cov[i:i+1],jacmodelfineT))
+    #covmodelfine = np.matmul(jacmodelfine,np.matmul(covmodel[i:i+1],jacmodelfineT))
     ierrsmodelfine = np.sqrt(np.diagonal(covmodelfine, axis1=-2, axis2=-1))
     ierrsmodelfine = np.reshape(ierrsmodelfine,scalesigmamodelfine[i:i+1].shape)
     
